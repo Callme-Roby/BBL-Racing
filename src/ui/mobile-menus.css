@@ -1,0 +1,851 @@
+/* Phones & tablets: menus (title, select, stage, options, online, lab, tournament) (loaded after styles.css). */
+/* Tournament screens: see the "phones" section at the end of tournament.css (loaded after this file).        */
+/* Breakpoints (same as phoneLayout() in src/ui/dom.ts):                                                       */
+/*   portrait  = (max-width: 600px)                                                                            */
+/*   landscape = (max-height: 500px) and (min-aspect-ratio: 1/1)                                               */
+
+/* ------------------------------------------------------------------ */
+/* touch vs keyboard hints (html.touch-ui is set by syncTouchUi())     */
+/* ------------------------------------------------------------------ */
+html:not(.touch-ui) .touch-only {
+  display: none !important;
+}
+
+html.touch-ui .kbd-only {
+  display: none !important;
+}
+
+/* touch: no "slide right" on tapped buttons (hover sticks after a tap) */
+html.touch-ui .btn:hover {
+  transform: none;
+}
+
+/* select screen: VALIDER (touch), blue for J1, red for J2 */
+.btn.sel-ok {
+  min-width: 200px;
+  text-align: center;
+  border-color: #3aa0ff;
+  background: linear-gradient(180deg, #9fd2ff, #3aa0ff);
+  color: #001a33;
+}
+
+.btn.sel-ok.p2 {
+  border-color: var(--red);
+  background: linear-gradient(180deg, #ff9a9a, var(--red));
+  color: #2a0000;
+}
+
+.btn.sel-ok:hover {
+  border-color: #fff;
+  background: linear-gradient(180deg, #c4e3ff, #3aa0ff);
+}
+
+.btn.sel-ok.p2:hover {
+  background: linear-gradient(180deg, #ffc0c0, var(--red));
+}
+
+/* options: the two controls tables */
+.options-keys-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+/* stage select: C'EST PARTI ! (touch) */
+.stage-go {
+  min-width: 200px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* small screens, both orientations                                    */
+/* ------------------------------------------------------------------ */
+@media (max-width: 600px), (max-height: 500px) {
+  .backbtn {
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    min-height: 36px;
+    padding: 6px 9px;
+    font-size: 8px;
+  }
+
+  .menu {
+    min-width: 0;
+    width: min(420px, 100% - 20px);
+  }
+
+  .menu button {
+    line-height: 1.35;
+  }
+
+  .menu button.sel::before {
+    left: -16px;
+  }
+
+  .menu button.sel,
+  .menu button:hover {
+    transform: translateX(4px);
+  }
+
+  .status {
+    font-size: 9px;
+  }
+
+  .field {
+    line-height: 1.5;
+  }
+
+  .footer-hint {
+    font-size: 8px;
+  }
+
+  .chips button {
+    min-height: 36px;
+  }
+
+  .share {
+    width: min(640px, 100%);
+  }
+
+  .share .btn {
+    text-align: center;
+    padding: 12px 10px;
+  }
+
+  /* stage select */
+  .stage-screen .footer-hint {
+    position: static;
+    padding: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* portrait phones                                                     */
+/* ------------------------------------------------------------------ */
+@media (max-width: 600px) {
+  .screen {
+    gap: 12px;
+    padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+
+  .h1 {
+    font-size: clamp(18px, 5.6vw, 24px);
+    line-height: 1.15;
+  }
+
+  .menu button {
+    padding: 11px 14px;
+    font-size: 11px;
+  }
+
+  .menu button .sub {
+    font-size: 7px;
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+
+  .title-hint {
+    font-size: 9px;
+    line-height: 1.7;
+  }
+
+  /* link + COPIER (+ PARTAGER): the field takes a whole row, the buttons share the next one */
+  .share {
+    flex-wrap: wrap;
+  }
+
+  .share input {
+    flex: 1 1 100%;
+  }
+
+  .share .btn {
+    flex: 1 1 0;
+  }
+
+  /* --- title: logo on top, menu in the middle, footer at the bottom --- */
+  .screen.title {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-top: max(4vh, env(safe-area-inset-top));
+  }
+
+  .title .logo,
+  .title:not(.press) .logo {
+    font-size: clamp(38px, 12vw, 58px);
+  }
+
+  .title.press .logo {
+    margin-top: auto;
+    font-size: clamp(44px, 15vw, 72px);
+  }
+
+  .title-menu {
+    margin: auto 0;
+    width: min(400px, 100% - 16px);
+    gap: 7px;
+  }
+
+  .title-foot {
+    position: static;
+    margin-top: auto;
+    padding: 0 6px;
+    font-size: 7px;
+    line-height: 1.7;
+  }
+
+  /* --- fighter select: header · 3D fighter(s) · names · grid · VALIDER --- */
+  .pick-screen {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .pick-screen .top {
+    min-height: 36px;
+    padding-left: 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    text-align: left;
+  }
+
+  .pick-screen .top .h1 {
+    font-size: clamp(13px, 4.1vw, 18px);
+    text-align: left;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  .pick-screen .top .title-hint {
+    font-size: 7px;
+    line-height: 1.3;
+    text-align: left;
+  }
+
+  .pick-screen .names {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .pick-screen:not(.duo) .names {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .pick-screen .pname {
+    max-width: 50%;
+    font-size: clamp(20px, 6.6vw, 28px);
+    text-shadow: 3px 3px 0 #000;
+  }
+
+  .pick-screen:not(.duo) .pname {
+    max-width: 100%;
+  }
+
+  .pick-screen .pname .ttl {
+    font-size: 8px;
+    line-height: 1.4;
+    margin-top: 5px;
+  }
+
+  .pick-screen .lock {
+    margin-top: 3px;
+  }
+
+  /* profile: badge + line, one stat per row */
+  .pick-screen .profile {
+    gap: 3px;
+    margin-top: 5px;
+  }
+
+  .pick-screen .pf-head {
+    gap: 5px;
+  }
+
+  .pick-screen .pf-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    box-shadow: 1px 1px 0 #000;
+  }
+
+  .pick-screen .pf-line {
+    font-size: 7px;
+    line-height: 1.4;
+  }
+
+  .pick-screen .pf-line small {
+    display: block;
+    font-size: 6px;
+  }
+
+  .pick-screen .pf-model::before {
+    content: none;
+  }
+
+  .pick-screen .pf-stats {
+    grid-template-columns: auto;
+    gap: 2px;
+  }
+
+  .pick-screen .pf-k {
+    font-size: 6px;
+  }
+
+  .pick-screen .pf-bar i {
+    width: 7px;
+    height: 5px;
+  }
+
+  .pick-screen .pf-cmd {
+    font-size: 6px;
+    padding: 1px 4px;
+  }
+
+  .pick-screen .sel-assist {
+    margin-top: 6px;
+    gap: 6px;
+  }
+
+  .pick-screen .sel-assist .aph {
+    width: 26px;
+    height: 33px;
+    font-size: 14px;
+  }
+
+  .pick-screen .sel-assist b {
+    font-size: 11px;
+  }
+
+  .pick-screen .sel-assist small,
+  .pick-screen .sel-assist .ak {
+    font-size: 6px;
+  }
+
+  .pick-screen .bottom {
+    gap: 7px;
+  }
+
+  .pick-screen .grid {
+    grid-template-columns: repeat(5, minmax(0, 64px));
+    gap: 5px;
+    padding: 6px;
+    max-width: 100%;
+    max-height: 46vh;
+    overflow-y: auto;
+    touch-action: pan-y;
+  }
+
+  .pick-screen .cell {
+    width: auto;
+    height: auto;
+    aspect-ratio: 4 / 5;
+  }
+
+  .pick-screen .cell.special {
+    font-size: 26px;
+  }
+
+  .pick-screen .sel-hint {
+    font-size: 8px;
+    line-height: 1.5;
+  }
+
+  .btn.sel-ok {
+    width: min(360px, 100%);
+    padding: 13px 12px;
+    font-size: 11px;
+  }
+
+  /* --- stage select: 2 × 2 cards --- */
+  .stage-screen {
+    gap: 10px;
+  }
+
+  .stages {
+    gap: 10px;
+    width: 100%;
+  }
+
+  .stage-card,
+  .stage-card:hover {
+    width: calc(50% - 5px);
+  }
+
+  .stage-card .lbl {
+    padding: 6px;
+    font-size: 9px;
+  }
+
+  .stage-card .lbl small {
+    font-size: 7px;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .stage-go {
+    width: min(360px, 100%);
+    padding: 13px 12px;
+  }
+
+  /* --- options: one scrolling column --- */
+  .options {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .options-keys-wrap {
+    width: 100%;
+    gap: 12px;
+  }
+
+  .options-screen .panel {
+    padding: 12px;
+  }
+
+  .controls-table {
+    font-size: 8px;
+    line-height: 1.8;
+  }
+
+  .controls-table td {
+    padding: 3px 4px;
+  }
+
+  .controls-table td:first-child {
+    width: 38%;
+  }
+
+  /* --- lab: 3D preview on top, the form scrolls below --- */
+  .lab {
+    grid-template-rows: minmax(0, 36%) minmax(0, 1fr);
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .lab .form {
+    padding: 10px 12px;
+  }
+
+  .crop {
+    width: 120px;
+    height: 160px;
+  }
+
+  .field input,
+  .field select {
+    padding: 10px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* landscape phones (short screens)                                    */
+/* ------------------------------------------------------------------ */
+@media (max-height: 500px) and (min-aspect-ratio: 1/1) {
+  .screen {
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+
+  .h1 {
+    font-size: 20px;
+  }
+
+  .menu {
+    gap: 5px;
+  }
+
+  .menu button {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .menu button .sub {
+    font-size: 7px;
+    margin-top: 3px;
+  }
+
+  .title-hint {
+    font-size: 9px;
+    line-height: 1.6;
+  }
+
+  /* --- title: logo on the left, menu on the right --- */
+  .screen.title:not(.press) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+    grid-template-rows: minmax(0, 1fr) auto;
+    column-gap: 4vw;
+    row-gap: 6px;
+    align-items: center;
+    justify-items: center;
+  }
+
+  .title:not(.press) .logo {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: clamp(32px, 6.4vw, 72px);
+  }
+
+  .title-menu {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: 100%;
+  }
+
+  .title-menu button {
+    padding: 7px 12px;
+  }
+
+  .title:not(.press) .title-foot {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0;
+    font-size: 6px;
+    line-height: 1.6;
+  }
+
+  .title.press .logo {
+    font-size: clamp(40px, 8.5vw, 90px);
+  }
+
+  .title.press .title-foot {
+    font-size: 7px;
+  }
+
+  /* --- fighter select: title on top, names in the corners, fighters beside the grid --- */
+  .pick-screen {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    column-gap: 8px;
+    row-gap: 4px;
+    padding: max(6px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  }
+
+  .pick-screen .top {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 40px;
+    padding: 0 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .pick-screen .top .h1 {
+    font-size: 16px;
+    text-shadow: 2px 2px 0 #000;
+  }
+
+  .pick-screen .top .title-hint {
+    font-size: 7px;
+    line-height: 1.3;
+  }
+
+  .pick-screen .names {
+    display: contents;
+  }
+
+  .pick-screen .pname {
+    font-size: clamp(16px, 3vw, 24px);
+    text-shadow: 3px 3px 0 #000;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .pick-screen .pname.p1 {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .pick-screen .pname.p2 {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .pick-screen .pname .ttl {
+    font-size: 7px;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+
+  .pick-screen .lock {
+    font-size: 8px;
+    margin-top: 2px;
+  }
+
+  /* profile: compact, stats in two columns */
+  .pick-screen .profile {
+    gap: 3px;
+    margin-top: 4px;
+  }
+
+  .pick-screen .pf-head {
+    gap: 5px;
+  }
+
+  .pick-screen .pf-badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    box-shadow: 1px 1px 0 #000;
+  }
+
+  .pick-screen .pf-line {
+    font-size: 7px;
+    line-height: 1.4;
+  }
+
+  .pick-screen .pf-line small {
+    display: block;
+    font-size: 6px;
+  }
+
+  .pick-screen .pf-model::before {
+    content: none;
+  }
+
+  .pick-screen .pf-stats {
+    gap: 2px 8px;
+  }
+
+  .pick-screen .pf-k {
+    font-size: 6px;
+  }
+
+  .pick-screen .pf-bar i {
+    width: 6px;
+    height: 5px;
+  }
+
+  .pick-screen .pf-cmd {
+    font-size: 6px;
+    padding: 1px 4px;
+  }
+
+  .pick-screen .sel-assist {
+    margin-top: 5px;
+    gap: 6px;
+  }
+
+  .pick-screen .sel-assist .aph {
+    width: 24px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .pick-screen .sel-assist b {
+    font-size: 10px;
+  }
+
+  .pick-screen .sel-assist small,
+  .pick-screen .sel-assist .ak {
+    font-size: 6px;
+  }
+
+  .pick-screen .arena {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .pick-screen .bottom {
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: end;
+    gap: 5px;
+  }
+
+  .pick-screen .grid {
+    grid-template-columns: repeat(var(--cols, 6), 46px);
+    gap: 4px;
+    padding: 5px;
+    max-height: 62vh;
+    overflow-y: auto;
+    touch-action: pan-y;
+  }
+
+  .pick-screen .cell {
+    width: 46px;
+    height: 58px;
+  }
+
+  .pick-screen .cell .nm {
+    font-size: 6px;
+  }
+
+  .pick-screen .cell .tag {
+    top: -8px;
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+
+  .pick-screen .cell.special {
+    font-size: 22px;
+  }
+
+  .pick-screen .sel-hint {
+    font-size: 7px;
+    line-height: 1.5;
+  }
+
+  .btn.sel-ok {
+    min-width: 0;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 10px;
+  }
+
+  /* --- stage select: one row of cards --- */
+  .stage-screen {
+    gap: 6px;
+  }
+
+  .stage-card {
+    width: min(220px, 21vw);
+  }
+
+  .stage-card .lbl {
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+
+  .stage-card .lbl small {
+    font-size: 7px;
+    margin-top: 3px;
+  }
+
+  .stage-go {
+    min-height: 38px;
+    padding: 8px 12px;
+  }
+
+  /* --- options: the settings in two columns, the controls side by side below --- */
+  .options-screen .h1 {
+    font-size: 18px;
+  }
+
+  .options-main {
+    width: min(820px, 100%);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 22px;
+    padding: 10px 14px;
+  }
+
+  .options-keys-wrap {
+    width: min(820px, 100%);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+
+  .options-keys-wrap .options {
+    width: auto;
+    padding: 10px 12px;
+  }
+
+  .controls-table {
+    font-size: 8px;
+  }
+
+  /* --- lab: form on the left, 3D preview on the right --- */
+  .lab {
+    grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+    grid-template-rows: none;
+    gap: 8px;
+    padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .lab .preview {
+    order: 0;
+  }
+
+  .lab .form {
+    padding: 8px 12px;
+  }
+
+  .crop {
+    width: 105px;
+    height: 140px;
+  }
+
+  /* --- online --- */
+  .online-screen .status {
+    max-width: min(640px, 100%);
+  }
+}
+
+/* lab header: ◀ RETOUR + LABO (every size) */
+.lab-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lab-head .backbtn {
+  position: static;
+  flex: none;
+}
+
+.lab-head .h1 {
+  flex: 1;
+  font-size: 26px;
+  text-align: center;
+  padding-right: 40px;
+}
+
+@media (max-width: 600px), (max-height: 500px) {
+  .lab-head .h1 {
+    font-size: 20px;
+    padding-right: 0;
+  }
+}
+
+/* options on touch screens: the touch controls help (src/screens/help.ts) */
+.options-screen .help-h {
+  font-size: 9px;
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+
+.options-screen .help-h + table {
+  margin-bottom: 10px;
+}
+
+/* --- character catalogues (◀ ▶ around the grid): slimmer arrows on phones --- */
+@media (max-width: 600px), (max-height: 500px) {
+  .rpages {
+    gap: 3px;
+  }
+
+  .rpages .rp-row {
+    gap: 4px;
+  }
+
+  .rp-arrow {
+    width: 30px;
+    gap: 4px;
+  }
+
+  .rp-arrow .rp-ico {
+    font-size: 15px;
+  }
+
+  .rp-label {
+    font-size: 7px;
+    gap: 6px;
+  }
+
+  .rp-dots i {
+    width: 6px;
+    height: 6px;
+  }
+
+  .rp-away b {
+    font-size: 6px;
+    padding: 1px 2px;
+  }
+}

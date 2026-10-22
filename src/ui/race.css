@@ -1,0 +1,494 @@
+/* BBL KART: race HUD, overlays, item slot, results (loaded after styles.css). */
+
+.rhud {
+  position: absolute;
+  pointer-events: none;
+  overflow: hidden;
+  font-family: var(--arcade);
+  color: #fff;
+  text-shadow: 3px 3px 0 #000;
+  --pc: #3aa0ff;
+}
+
+.rhud.multi {
+  outline: 2px solid rgba(0, 0, 0, 0.85);
+  outline-offset: -1px;
+}
+
+.rh-top {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  top: max(10px, env(safe-area-inset-top));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.rh-left {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.rh-lap {
+  font-size: clamp(20px, 3.6vw, 40px);
+  font-style: italic;
+  line-height: 1;
+}
+
+.rh-lap small {
+  font-size: 0.5em;
+  font-family: var(--pixel);
+  font-style: normal;
+  color: #ffd23a;
+}
+
+.rh-time {
+  font-family: var(--pixel);
+  font-size: clamp(10px, 1.5vw, 16px);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 8px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+.rh-item {
+  width: clamp(46px, 7vw, 72px);
+  height: clamp(46px, 7vw, 72px);
+  border-radius: 10px;
+  border: 3px solid #fff;
+  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.35), rgba(30, 20, 60, 0.6) 70%);
+  box-shadow: 0 0 0 3px #000, inset 0 0 12px rgba(0, 0, 0, 0.6);
+  position: relative;
+}
+
+.rh-item .rh-icon {
+  position: absolute;
+  inset: 8%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+}
+
+.rh-item.rolling .rh-icon {
+  animation: rh-roll 0.12s steps(2) infinite;
+}
+
+@keyframes rh-roll {
+  50% {
+    transform: translateY(-6%) scale(0.92);
+  }
+}
+
+.rh-item .rh-count {
+  position: absolute;
+  right: -6px;
+  bottom: -8px;
+  font-size: 14px;
+  color: #ffd23a;
+}
+
+.rh-pos {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  font-size: clamp(54px, 11vw, 120px);
+  font-style: italic;
+  line-height: 0.9;
+  color: #ffd23a;
+  -webkit-text-stroke: 2px #000;
+  text-shadow: 5px 5px 0 #000;
+}
+
+.rh-pos small {
+  font-size: 0.42em;
+}
+
+.rh-pos[data-p='1'] {
+  color: #ffe04a;
+}
+
+.rh-pos[data-p='2'] {
+  color: #dfe6f0;
+}
+
+.rh-pos[data-p='3'] {
+  color: #e8a060;
+}
+
+.rh-pos.bump {
+  animation: rh-bump 0.3s ease-out;
+}
+
+@keyframes rh-bump {
+  0% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.rh-msg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 26%;
+  text-align: center;
+  font-size: clamp(16px, 3vw, 32px);
+  font-style: italic;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.rh-msg.on {
+  opacity: 1;
+}
+
+.rh-msg.t1 {
+  color: #6ac8ff;
+}
+
+.rh-msg.t2 {
+  color: #ffa040;
+}
+
+.rh-msg.t3 {
+  color: #d07aff;
+}
+
+.rh-msg.gold {
+  color: #ffd23a;
+}
+
+.rh-msg.red {
+  color: #ff5a4a;
+}
+
+.rh-big {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 32%;
+  text-align: center;
+  font-size: clamp(60px, 14vw, 170px);
+  font-style: italic;
+  color: #ffd23a;
+  -webkit-text-stroke: 3px #000;
+  text-shadow: 6px 6px 0 #000;
+  opacity: 0;
+}
+
+.rh-big.on {
+  opacity: 1;
+}
+
+.rh-big.pop {
+  animation: rh-pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.rh-big.go {
+  color: #5aff6a;
+}
+
+.rh-big.finish {
+  font-size: clamp(40px, 9vw, 110px);
+  color: #fff;
+}
+
+@keyframes rh-pop {
+  0% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.rh-wrong {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 44%;
+  text-align: center;
+  font-size: clamp(18px, 3.4vw, 36px);
+  color: #ff4a3a;
+  opacity: 0;
+}
+
+.rh-wrong.on {
+  opacity: 1;
+  animation: blink 0.5s steps(2) infinite;
+}
+
+/* slipstream: wind streaks on the sides */
+.rh-slip {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background:
+    repeating-linear-gradient(100deg, transparent 0 34px, rgba(255, 255, 255, 0.22) 34px 36px, transparent 36px 80px) left / 22% 100% no-repeat,
+    repeating-linear-gradient(80deg, transparent 0 34px, rgba(255, 255, 255, 0.22) 34px 36px, transparent 36px 80px) right / 22% 100% no-repeat;
+}
+
+.rh-slip.on {
+  opacity: 1;
+  animation: rh-wind 0.25s linear infinite;
+}
+
+@keyframes rh-wind {
+  to {
+    background-position:
+      left 0 top 40px,
+      right 0 top 40px;
+  }
+}
+
+.minimap {
+  position: absolute;
+  left: max(8px, env(safe-area-inset-left));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: clamp(96px, 16vw, 150px);
+  height: auto;
+  opacity: 0.92;
+}
+
+.rh-list {
+  position: absolute;
+  left: max(10px, env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rh-row {
+  width: 26px;
+  height: 30px;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  border: 2px solid #000;
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  padding: 1px;
+  opacity: 0.85;
+  transition: transform 0.2s;
+}
+
+.rh-row.me {
+  border-color: var(--pc);
+  opacity: 1;
+  transform: translateX(6px) scale(1.15);
+}
+
+.rh-tag {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  background: var(--pc);
+  padding: 2px 8px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* split screen in quarters: smaller everything */
+.rhud.small .rh-lap {
+  font-size: 18px;
+}
+
+.rhud.small .rh-time {
+  font-size: 8px;
+  padding: 3px 4px;
+}
+
+.rhud.small .rh-item {
+  width: 40px;
+  height: 40px;
+}
+
+.rhud.small .rh-pos {
+  font-size: 48px;
+}
+
+.rhud.small .rh-big {
+  font-size: 60px;
+}
+
+.rhud.small .rh-msg {
+  font-size: 13px;
+}
+
+/* intro of the circuit: comic-book title card */
+.race-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18%;
+  text-align: center;
+  pointer-events: none;
+  font-family: var(--arcade);
+  text-shadow: 4px 4px 0 #000;
+  animation: rt-in 0.5s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.race-title b {
+  display: inline-block;
+  font-size: clamp(30px, 6.5vw, 80px);
+  font-style: italic;
+  color: #ffd23a;
+  background: #16101e;
+  padding: 6px 20px;
+  border: 4px solid #000;
+  box-shadow: 6px 6px 0 #ff8a1c;
+  transform: rotate(-2deg);
+}
+
+.race-title small {
+  display: block;
+  margin-top: 14px;
+  font-family: var(--pixel);
+  font-size: clamp(9px, 1.4vw, 13px);
+  color: #fff;
+}
+
+.race-title .skip {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--muted);
+}
+
+@keyframes rt-in {
+  from {
+    transform: translateX(-60%) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+.race-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--pixel);
+  font-size: 12px;
+  background: #0a0a14;
+  color: #fff;
+}
+
+/* results table (end of a race, grand prix standings) */
+.results-table {
+  width: min(560px, 94vw);
+  border-collapse: collapse;
+  font-family: var(--pixel);
+  font-size: clamp(8px, 1.4vw, 11px);
+}
+
+.results-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.results-table tr.me td {
+  color: #ffd23a;
+  background: rgba(255, 210, 58, 0.08);
+}
+
+.results-table .rk {
+  font-family: var(--arcade);
+  font-size: 1.6em;
+  width: 2.5em;
+}
+
+.results-table .face {
+  width: 26px;
+  height: 32px;
+  background-size: cover;
+  background-position: center;
+  image-rendering: pixelated;
+  border: 2px solid #000;
+}
+
+.results-table .pts {
+  text-align: right;
+  color: #7ee07a;
+}
+
+.results-table .tt {
+  text-align: right;
+  color: var(--muted);
+}
+
+.overlay.results {
+  overflow-y: auto;
+}
+
+/* circuit / cup cards */
+.track-cards {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 980px;
+}
+
+.track-card {
+  width: 210px;
+  padding: 10px;
+  background: rgba(10, 8, 20, 0.82);
+  border: 3px solid #2a2440;
+  cursor: pointer;
+  text-align: center;
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+
+.track-card canvas {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.track-card b {
+  display: block;
+  font-family: var(--arcade);
+  font-style: italic;
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.track-card.sel {
+  border-color: var(--orange);
+  transform: translateY(-4px);
+  box-shadow: 0 0 0 3px #000, 0 6px 0 var(--orange);
+}
+
+.track-card.sel b {
+  color: #ffd23a;
+}
+
+@media (max-width: 600px) {
+  .track-card {
+    width: 44vw;
+    padding: 6px;
+  }
+  .track-card b {
+    font-size: 12px;
+  }
+}

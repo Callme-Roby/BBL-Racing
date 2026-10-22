@@ -1,0 +1,22 @@
+{
+  "name": "bbl-kart",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "sim": "esbuild dev/simTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/simtest.cjs && node node_modules/.cache/simtest.cjs"
+  },
+  "dependencies": {
+    "peerjs": "1.5.5",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  }
+}

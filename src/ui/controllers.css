@@ -1,0 +1,672 @@
+/* Gamepads & arcade sticks: OPTIONS → MANETTES & STICKS (src/screens/controllers.ts), + keyboard / controller focus. */
+
+/* ------------------------------------------------------------------ */
+/* focus moved with the keyboard / a controller (FocusNav, options)    */
+/* ------------------------------------------------------------------ */
+.btn.kfocus,
+.pad-row.kfocus {
+  border-color: var(--orange);
+  background: linear-gradient(90deg, rgba(255, 138, 28, 0.32), rgba(8, 10, 22, 0.85));
+  box-shadow: 0 0 0 2px rgba(255, 210, 58, 0.35);
+}
+
+.btn.primary.kfocus {
+  background: linear-gradient(180deg, #fff3b0, var(--orange2));
+  box-shadow: 0 0 0 3px rgba(255, 138, 28, 0.55);
+}
+
+/* options rows (chips, sliders) */
+.options .field.kfocus {
+  outline: 2px solid var(--orange);
+  outline-offset: 5px;
+  background: rgba(255, 138, 28, 0.08);
+  color: var(--orange2);
+}
+
+.options .field.kfocus.pads-field {
+  outline: none;
+  background: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* OPTIONS: the MANETTES & STICKS button                               */
+/* ------------------------------------------------------------------ */
+.pads-field .pads-open {
+  width: 100%;
+  text-align: left;
+}
+
+.pads-open .sub {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72em;
+  margin-top: 6px;
+  letter-spacing: 0;
+}
+
+.btn.pads-open.kfocus .sub {
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ */
+/* setup screen                                                         */
+/* ------------------------------------------------------------------ */
+.pads-body {
+  width: min(980px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.pads-wrap {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(250px, 340px) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.pads-wrap.empty {
+  grid-template-columns: minmax(0, 520px);
+  justify-content: center;
+}
+
+.pads-h {
+  font-size: 10px;
+  color: var(--orange2);
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.pads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pad-row {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px;
+  border: 2px solid var(--line);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--pixel);
+}
+
+.pad-row.sel {
+  border-color: var(--orange);
+}
+
+.pad-row:hover {
+  border-color: var(--orange2);
+}
+
+.pad-num {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-family: var(--arcade);
+  font-size: 15px;
+  color: #1a0a00;
+  background: linear-gradient(180deg, var(--orange2), var(--orange));
+}
+
+.pad-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pad-name {
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pad-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pad-tags i {
+  font-style: normal;
+  font-size: 7px;
+  padding: 3px 5px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.pad-tags i.ok {
+  color: var(--teal);
+  border-color: rgba(41, 215, 196, 0.5);
+}
+
+.pad-tags i.warn {
+  color: var(--orange2);
+  border-color: rgba(255, 210, 58, 0.5);
+}
+
+.pad-tags i.perso {
+  color: #1a0a00;
+  background: var(--orange2);
+  border-color: var(--orange2);
+}
+
+.pad-tags i.seat.s0 {
+  color: #9fd2ff;
+  border-color: #3aa0ff;
+}
+
+.pad-tags i.seat.s1 {
+  color: #ffb0b0;
+  border-color: var(--red);
+}
+
+.pads-empty,
+.pads-foot,
+.pads-note {
+  font-size: 8px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.pads-empty {
+  font-size: 9px;
+  color: var(--text);
+  padding: 8px 0;
+}
+
+.pads-foot {
+  margin-top: 4px;
+}
+
+.pads-note.warn {
+  color: var(--orange2);
+}
+
+.pads-msg {
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--teal);
+  margin: 10px 0 0;
+}
+
+.pads-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.pads-detail .pads-actions {
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.pads-actions .btn {
+  text-align: center;
+  padding: 11px 14px;
+  font-size: 10px;
+}
+
+.pads-actions .btn:hover,
+.pads-actions .btn.kfocus {
+  transform: none;
+}
+
+.pads-map {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+  line-height: 1.6;
+  margin-top: 8px;
+}
+
+.pads-map td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.pads-map td:first-child {
+  width: 38%;
+  color: var(--text);
+}
+
+.pads-map td:first-child small {
+  color: var(--muted);
+  font-size: 7px;
+}
+
+/* an input of a controller: "A", "✕", "B5", "POV ↑", "Axe 2 −" */
+.pk {
+  display: inline-block;
+  font-family: var(--pixel);
+  font-size: 9px;
+  line-height: 1.3;
+  background: #222;
+  border: 1px solid #555;
+  border-bottom-width: 3px;
+  padding: 2px 6px;
+  margin: 2px 4px 2px 0;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.pk.dir {
+  color: var(--orange2);
+}
+
+.pk.none {
+  background: none;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.pk.c-green {
+  color: #5fe06a;
+}
+
+.pk.c-red {
+  color: #ff6464;
+}
+
+.pk.c-blue {
+  color: #6fb4ff;
+}
+
+.pk.c-yellow {
+  color: #ffd84a;
+}
+
+.pk.c-pink {
+  color: #ff8fd8;
+}
+
+/* ---- wizard / test */
+.pads-wiz {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.pads-wiz .pads-h {
+  margin: 0;
+}
+
+.pads-step {
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+
+.pads-ask {
+  font-family: var(--arcade);
+  font-style: italic;
+  font-size: clamp(18px, 3.2vw, 30px);
+  text-shadow: 2px 2px 0 #000;
+  line-height: 1.2;
+}
+
+.pads-ask b {
+  color: var(--orange2);
+  font-weight: normal;
+}
+
+.pads-sub {
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.pads-sub.wait {
+  color: var(--orange2);
+  animation: blink 0.8s steps(2) infinite;
+}
+
+.pads-done {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--muted);
+  min-height: 12px;
+}
+
+.pads-got .pk {
+  font-size: 8px;
+  margin: 0;
+}
+
+.pads-got.skip {
+  opacity: 0.6;
+}
+
+.pads-got.dup .pk {
+  border-color: var(--red);
+}
+
+.pads-keys {
+  font-size: 8px;
+  color: var(--muted);
+}
+
+.pads-raw {
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--teal);
+  min-height: 2.4em;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* ---- input display: lever + buttons like an arcade stick */
+/* the input the wizard asks for (never fully hidden, unlike .blink) */
+@keyframes pads-want {
+  to {
+    opacity: 0.45;
+  }
+}
+
+.pad-viz {
+  --pv: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(28 * var(--pv));
+  padding: calc(12 * var(--pv)) calc(18 * var(--pv));
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--line);
+}
+
+.pv-lever {
+  position: relative;
+  flex: none;
+  width: calc(124 * var(--pv));
+  height: calc(124 * var(--pv));
+  border-radius: 50%;
+  background: radial-gradient(circle, #1d1b2e 0 55%, #111 56%);
+  border: 2px solid #3a3850;
+}
+
+.pv-gate {
+  position: absolute;
+  inset: 26%;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  transform: rotate(22.5deg);
+}
+
+.pv-ball {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(46 * var(--pv));
+  height: calc(46 * var(--pv));
+  margin: calc(-23 * var(--pv)) 0 0 calc(-23 * var(--pv));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff9a9a, var(--red) 55%, #6a0a10);
+  box-shadow: 0 3px 0 #000;
+  transition: transform 0.03s;
+}
+
+.pv-ball.on {
+  background: radial-gradient(circle at 35% 30%, #fff3b0, var(--orange) 55%, #7a2d00);
+}
+
+.pv-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: calc(7 * var(--pv)) solid transparent;
+}
+
+.pv-up {
+  top: calc(3 * var(--pv));
+  left: calc(50% - 7 * var(--pv));
+  border-bottom-color: #555;
+  border-top-width: 0;
+}
+
+.pv-down {
+  bottom: calc(3 * var(--pv));
+  left: calc(50% - 7 * var(--pv));
+  border-top-color: #555;
+  border-bottom-width: 0;
+}
+
+.pv-left {
+  left: calc(3 * var(--pv));
+  top: calc(50% - 7 * var(--pv));
+  border-right-color: #555;
+  border-left-width: 0;
+}
+
+.pv-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(10 * var(--pv));
+}
+
+.pv-right {
+  right: calc(3 * var(--pv));
+  top: calc(50% - 7 * var(--pv));
+  border-left-color: #555;
+  border-right-width: 0;
+}
+
+.pv-up.on {
+  border-bottom-color: var(--orange2);
+}
+.pv-down.on {
+  border-top-color: var(--orange2);
+}
+.pv-left.on {
+  border-left-color: transparent;
+  border-right-color: var(--orange2);
+}
+.pv-right.on {
+  border-left-color: var(--orange2);
+}
+
+.pv-up.want {
+  border-bottom-color: var(--teal);
+  animation: pads-want 0.7s ease-in-out infinite alternate;
+}
+.pv-down.want {
+  border-top-color: var(--teal);
+  animation: pads-want 0.7s ease-in-out infinite alternate;
+}
+.pv-left.want {
+  border-right-color: var(--teal);
+  animation: pads-want 0.7s ease-in-out infinite alternate;
+}
+.pv-right.want {
+  border-left-color: var(--teal);
+  animation: pads-want 0.7s ease-in-out infinite alternate;
+}
+
+.pv-btns {
+  display: grid;
+  grid-template-columns: repeat(4, calc(52 * var(--pv)));
+  gap: calc(8 * var(--pv)) calc(10 * var(--pv));
+}
+
+.pv-btns .pv-btn:nth-child(n + 5) {
+  transform: translateX(calc(14 * var(--pv)));
+}
+
+.pv-btn {
+  width: calc(52 * var(--pv));
+  height: calc(52 * var(--pv));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: calc(9 * var(--pv));
+  font-weight: normal;
+  color: var(--text);
+  background: #1b1a26;
+  border: 2px solid #4a4860;
+  box-shadow: 0 3px 0 #000;
+}
+
+.pv-btn.pill {
+  border-radius: calc(14 * var(--pv));
+  font-size: calc(7 * var(--pv));
+}
+
+.pv-btn.gold {
+  border-color: #a8801c;
+  color: var(--orange2);
+}
+
+.pv-btn.teal {
+  border-color: var(--teal2);
+  color: var(--teal);
+}
+
+.pv-btn.on {
+  background: linear-gradient(180deg, var(--orange2), var(--orange));
+  border-color: #fff;
+  color: #1a0a00;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #000;
+}
+
+.pv-btns .pv-btn.on:nth-child(n + 5) {
+  transform: translate(calc(14 * var(--pv)), 2px);
+}
+
+.pv-btn.want {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(41, 215, 196, 0.45);
+  animation: pads-want 0.7s ease-in-out infinite alternate;
+}
+
+.pv-meta {
+  display: flex;
+  gap: calc(10 * var(--pv));
+}
+
+.pv-btn.small {
+  width: auto;
+  height: auto;
+  border-radius: calc(10 * var(--pv));
+  padding: calc(5 * var(--pv)) calc(9 * var(--pv));
+  font-size: calc(7 * var(--pv));
+}
+
+/* ------------------------------------------------------------------ */
+/* phones, both orientations                                            */
+/* ------------------------------------------------------------------ */
+@media (max-width: 600px), (max-height: 500px) {
+  .pads-actions .btn {
+    min-height: 38px;
+    padding: 9px 11px;
+    font-size: 9px;
+  }
+
+  .pad-row {
+    padding: 8px;
+  }
+
+  .pad-viz {
+    --pv: 0.78px;
+  }
+}
+
+/* portrait: one column */
+@media (max-width: 600px) {
+  /* the title goes under the top-left ◀ RETOUR (too long to fit beside it) */
+  .pads-screen .h1 {
+    margin-top: 34px;
+  }
+
+  .pads-wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pads-screen .panel {
+    padding: 12px;
+  }
+
+  .pads-map {
+    font-size: 8px;
+  }
+
+  .pad-viz {
+    --pv: 0.66px;
+    gap: 14px;
+    padding: 10px;
+  }
+
+  .pads-ask {
+    font-size: 19px;
+  }
+}
+
+/* landscape: compact, the wizard's display beside its text */
+@media (max-height: 500px) and (min-aspect-ratio: 1/1) {
+  .pads-screen .h1 {
+    font-size: 18px;
+  }
+
+  .pads-body {
+    gap: 8px;
+  }
+
+  .pads-wrap {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .pads-screen .panel {
+    padding: 10px 12px;
+  }
+
+  .pads-wiz {
+    width: min(760px, 100%);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-auto-flow: dense;
+    gap: 6px 16px;
+    align-items: center;
+  }
+
+  .pads-wiz > * {
+    grid-column: 2;
+  }
+
+  .pads-wiz > .pad-viz {
+    grid-column: 1;
+    grid-row: 1 / span 6;
+  }
+
+  .pad-viz {
+    --pv: 0.62px;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 10px;
+  }
+
+  .pads-ask {
+    font-size: 20px;
+  }
+}
