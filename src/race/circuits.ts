@@ -1,4 +1,5 @@
 import type { TrackDef } from './track';
+import { reverseTrack } from './reverse';
 import { turtle } from './turtle';
 
 /**
@@ -236,7 +237,23 @@ export const BEACH: TrackDef = {
   });
 }
 
-export const CIRCUITS: TrackDef[] = [HOOD, DOJO, PARKING, BEACH];
+/** The cups of the grand prix: 4 races each. */
+export interface Cup {
+  id: string;
+  name: string;
+  /** trophy colour of the cup's emblem */
+  color: string;
+  tracks: TrackDef[];
+}
+
+const REVERSED = [BEACH, PARKING, DOJO, HOOD].map(reverseTrack);
+
+export const CUPS: Cup[] = [
+  { id: 'bbl', name: 'COUPE BBL', color: '#ffd23a', tracks: [HOOD, DOJO, PARKING, BEACH] },
+  { id: 'retour', name: 'COUPE RETOUR', color: '#4ae0ff', tracks: REVERSED },
+];
+
+export const CIRCUITS: TrackDef[] = [HOOD, DOJO, PARKING, BEACH, ...REVERSED];
 
 export function getCircuit(id: string): TrackDef {
   return CIRCUITS.find((c) => c.id === id) ?? CIRCUITS[0];

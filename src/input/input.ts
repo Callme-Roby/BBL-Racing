@@ -376,6 +376,8 @@ class InputManager {
   private menuQueue: MenuEvent[] = [];
   /** driving state of the on-screen touch controls (player 1) */
   touch: KartInput = { ...NO_INPUT };
+  /** the race has started: touch auto-acceleration may push the pedal (not during the countdown) */
+  autoAccelArmed = false;
   /** touch item button pressed since the last simulation tick (a very quick tap is never lost) */
   touchItemLatch = false;
   /** true while a text field has focus (disable game keys) */

@@ -492,3 +492,132 @@
     font-size: 12px;
   }
 }
+
+.cine-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* grand prix standings */
+.standings-screen .results-table {
+  width: min(620px, 94vw);
+}
+
+.results-table .gain {
+  color: #ffd23a;
+  text-align: right;
+  width: 3em;
+}
+
+.results-table tr.rise td {
+  animation: rowIn 0.35s both;
+}
+
+@keyframes rowIn {
+  from {
+    transform: translateX(-30px);
+    opacity: 0;
+  }
+}
+
+.cup-badge {
+  display: inline-block;
+  font-family: var(--arcade);
+  font-style: italic;
+  padding: 4px 12px;
+  border: 3px solid #000;
+  background: var(--cup, #ffd23a);
+  color: #1a0a00;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.podium-ui {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 6;
+}
+
+.podium-ui .status {
+  font-size: 12px;
+}
+
+.track-card .cup-tracks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.track-card .cup-tracks canvas {
+  margin: 0;
+}
+
+.track-card .cup-tracks small {
+  display: block;
+  font-size: 6px;
+  margin-top: 2px;
+}
+
+.track-card.cup {
+  width: 280px;
+}
+
+.tt-laps {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  top: calc(max(10px, env(safe-area-inset-top)) + 40px);
+  font-family: var(--pixel);
+  font-size: 9px;
+  text-align: right;
+  line-height: 1.8;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+}
+
+.tt-laps .best {
+  color: #7ee07a;
+}
+
+.tt-laps .rec {
+  color: var(--muted);
+}
+
+.race-screen.covered .rhud {
+  display: none;
+}
+
+.map-panel {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: radial-gradient(120% 100% at 50% 0%, #2a1b3c, #0d0a18);
+  outline: 2px solid #000;
+  pointer-events: none;
+}
+
+.map-panel .minimap {
+  position: static;
+  width: min(45%, 220px);
+}
+
+.mp-list {
+  font-family: var(--pixel);
+  font-size: clamp(6px, 1vw, 9px);
+  line-height: 1.7;
+  color: #ddd;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.race-screen.covered .map-panel {
+  display: none;
+}

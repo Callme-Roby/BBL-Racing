@@ -84,7 +84,7 @@ export class Race {
     this.ais = setup.racers.map((r, i) => (r.local === undefined && !r.remote ? new KartAI(this.karts[i], setup.difficulty, setup.seed + i * 7) : null));
     this.order = this.karts.map((_, i) => i);
     this.updateOrder();
-    if (setup.items && !setup.timeTrial) {
+    if (setup.items || setup.timeTrial) {
       this.items = new ItemSystem(this);
       this.systems.push(this.items);
     }
@@ -150,6 +150,13 @@ export class Race {
       this.phase = 'done';
       this.phaseTicks = 0;
     }
+  }
+
+  /** tests: everybody crosses the line now, in the current order */
+  debugFinish() {
+    for (const i of this.order) if (!this.karts[i].finished) this.finish(i);
+    this.phase = 'done';
+    this.phaseTicks = 0;
   }
 
   private autopilotAIs = new Map<number, KartAI>();

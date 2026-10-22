@@ -208,10 +208,14 @@ export class RetroPipeline {
     this.postMat.uniforms.uDither.value = this.dither ? 1 : 0;
     const r = this.renderer;
     r.setClearColor(clearColor, 1);
+    this.rt.scissorTest = false;
+    this.rt.viewport.set(0, 0, this.lowW, this.lowH);
     r.setRenderTarget(this.rt);
-    r.setScissorTest(false);
     r.clear();
-    r.setScissorTest(true);
+    // each view only touches its own rectangle (the target's scissor), nothing clears in between
+    const autoClear = r.autoClear;
+    r.autoClear = false;
+    this.rt.scissorTest = true;
     for (const v of views) {
       const x = Math.round(v.x * this.lowW);
       const y = Math.round(v.y * this.lowH);
@@ -223,9 +227,12 @@ export class RetroPipeline {
       PS1Globals.uSnapRes.value.set(w / 2, h / 2);
       v.before?.();
       r.setRenderTarget(this.rt);
+      // the clear colour behind this view (sky gaps), then the depth of this rectangle only
+      r.clearDepth();
       r.render(scene, v.camera);
     }
-    r.setScissorTest(false);
+    r.autoClear = autoClear;
+    this.rt.scissorTest = false;
     this.rt.viewport.set(0, 0, this.lowW, this.lowH);
     this.rt.scissor.set(0, 0, this.lowW, this.lowH);
     PS1Globals.uSnapRes.value.set(this.lowW / 2, this.lowH / 2);

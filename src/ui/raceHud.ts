@@ -18,7 +18,7 @@ export function fmtTime(t: number): string {
 }
 
 /** Track outline drawn once, karts as dots on top. */
-class MiniMap {
+export class MiniMap {
   readonly el: HTMLCanvasElement;
   private base: HTMLCanvasElement;
   private map: (x: number, z: number) => [number, number];
@@ -108,6 +108,37 @@ class MiniMap {
 }
 
 export const PLAYER_COLORS = ['#3aa0ff', '#ff4a4a', '#46e070', '#ffd23a'];
+
+/** Split screen with 3 players: the 4th quarter shows a big map and the positions. */
+export class MapPanel {
+  readonly el: HTMLDivElement;
+  private map: MiniMap;
+  private list: HTMLDivElement;
+
+  constructor(
+    private race: Race,
+    rect: ViewRect,
+  ) {
+    this.map = new MiniMap(race.track, 220);
+    this.list = h('div', { class: 'mp-list' });
+    this.el = h(
+      'div',
+      { class: 'map-panel', style: `left:${rect.x * 100}%;width:${rect.w * 100}%;bottom:${rect.y * 100}%;height:${rect.h * 100}%` },
+      this.map.el,
+      this.list,
+    );
+  }
+
+  update(locals: number[]) {
+    this.map.draw(this.race, locals);
+    this.list.replaceChildren(
+      ...this.race.order.slice(0, 12).map((ki, pos) => {
+        const p = locals.indexOf(ki);
+        return h('div', { class: 'mp-row', style: p >= 0 ? `color:${PLAYER_COLORS[p]}` : '' }, `${pos + 1}. ${this.race.karts[ki].def.name}`);
+      }),
+    );
+  }
+}
 
 /** Driver's HUD over one view: lap, time, position, item, messages, minimap, positions column. */
 export class RaceHud {

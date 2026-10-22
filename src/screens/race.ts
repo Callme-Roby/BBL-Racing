@@ -8,8 +8,11 @@ import { DT } from '../race/kart';
 import { Race, type RaceSetup } from '../race/race';
 import { RaceWorld, splitLayout, type ViewRect } from '../game/raceWorld';
 import { h, Menu, uiRoot } from '../ui/dom';
-import { fmtTime, ordinal, RaceHud } from '../ui/raceHud';
+import { fmtTime, MapPanel, ordinal, RaceHud } from '../ui/raceHud';
 import { ALL_ITEMS, itemIcon, type ItemId } from '../race/itemDefs';
+import { getRecord, GHOST_STEP, submitRun, type TrackRecord } from '../game/records';
+import { fullRoster } from '../game/settings';
+import { RacerView } from '../render/racerView';
 import { goMenu } from './flow';
 
 export type RaceMode = 'race' | 'gp' | 'tt' | 'split' | 'online';
@@ -53,6 +56,15 @@ export class RaceScreen implements Screen {
   readonly hooks: ((kart: number, ev: Race['events'][number]['ev']) => void)[] = [];
   /** online: the network decides when the countdown starts */
   holdIntro = false;
+  // ---- time trial
+  private record: TrackRecord | null = null;
+  private ghost: RacerView | null = null;
+  private ghostRec: number[] = [];
+  private lapTimes: number[] = [];
+  private lapStart = 0;
+  private lapsEl: HTMLElement | null = null;
+  private ttResult: { race: boolean; lap: boolean } | null = null;
+  private mapPanel: MapPanel | null = null;
 
   constructor(
     private app: App,
@@ -79,6 +91,7 @@ export class RaceScreen implements Screen {
     }
     this.world = world;
     this.opts.plug?.(this.race, world, this);
+    if (this.opts.mode === 'tt') await this.setupGhost();
     await world.prewarm(this.app.pipeline);
     if (this.disposed) return;
     this.root.replaceChildren();
@@ -100,6 +113,41 @@ export class RaceScreen implements Screen {
     this.root.addEventListener('click', () => this.skipIntro());
   }
 
+  private async setupGhost() {
+    this.record = getRecord(this.opts.setup.track.id);
+    const rec = this.record;
+    if (!rec?.ghost?.length || !this.world) return;
+    const def = fullRoster().find((d) => d.id === rec.driver) ?? this.race.karts[0].def;
+    const face = await loadFace(def);
+    const g = new RacerView(def, face);
+    g.addTo(this.world.scene);
+    g.makeGhost();
+    g.setVisible(false);
+    this.ghost = g;
+  }
+
+  /** ghost of the record, interpolated between its frames */
+  private updateGhost(dt: number, alpha: number) {
+    const g = this.ghost;
+    const rec = this.record;
+    if (!g || !rec?.ghost || this.race.phase === 'intro' || this.race.phase === 'countdown') return;
+    const frames = rec.ghost.length / 7;
+    const f = (this.race.time * 60 + alpha) / GHOST_STEP;
+    const i = Math.floor(f);
+    if (i >= frames - 1) {
+      g.setVisible(false);
+      return;
+    }
+    g.setVisible(true);
+    const k = f - i;
+    const a = rec.ghost.slice(i * 7, i * 7 + 7);
+    const b = rec.ghost.slice(i * 7 + 7, i * 7 + 14);
+    const pos = new THREE.Vector3(a[0], a[1], a[2]).lerp(new THREE.Vector3(b[0], b[1], b[2]), k);
+    const q = new THREE.Quaternion(a[3], a[4], a[5], a[6]).slerp(new THREE.Quaternion(b[3], b[4], b[5], b[6]), k);
+    const speed = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).length() * (60 / GHOST_STEP);
+    g.placeGhost(pos, q, dt, speed);
+  }
+
   private layoutHuds() {
     for (const hd of this.huds) hd.el.remove();
     this.huds.length = 0;
@@ -109,6 +157,25 @@ export class RaceScreen implements Screen {
       this.huds.push(hud);
       this.root.append(hud.el);
     });
+    if (this.opts.locals.length === 3) {
+      this.mapPanel = new MapPanel(this.race, { x: 0.5, y: 0, w: 0.5, h: 0.5 });
+      this.root.append(this.mapPanel.el);
+    }
+    if (this.opts.mode === 'tt') {
+      this.lapsEl = h('div', { class: 'tt-laps' });
+      this.huds[0]?.el.append(this.lapsEl);
+      this.refreshLaps();
+    }
+  }
+
+  private refreshLaps() {
+    if (!this.lapsEl) return;
+    const best = this.lapTimes.length ? Math.min(...this.lapTimes) : Infinity;
+    const rec = this.record;
+    this.lapsEl.replaceChildren(
+      ...this.lapTimes.map((t, i) => h('div', { class: t === best ? 'best' : '' }, `T${i + 1}  ${fmtTime(t)}`)),
+      h('div', { class: 'rec' }, rec ? `RECORD ${fmtTime(rec.best)}` : 'PAS ENCORE DE RECORD'),
+    );
   }
 
   skipIntro() {
@@ -162,8 +229,10 @@ export class RaceScreen implements Screen {
 
   exit() {
     this.disposed = true;
+    input.autoAccelArmed = false;
     this.app.pipeline.post.uLines.value = 0;
     for (const e of this.engines) e?.stop();
+    this.ghost?.dispose();
     this.world?.dispose();
     this.app.touch.onPause = null;
     input.setLocalPlayers(1);
@@ -240,7 +309,9 @@ export class RaceScreen implements Screen {
       world.render(this.app.pipeline, alpha, dt, this.rects, this.app.aspect);
     }
     for (const hd of this.huds) hd.update(dt, this.opts.locals);
+    if (this.mapPanel && race.ticks % 6 === 0) this.mapPanel.update(this.opts.locals);
     this.updateItemSlots();
+    if (this.ghost) this.updateGhost(dt, alpha);
     // manga speed lines while boosting (one player: they cover the whole picture)
     const post = this.app.pipeline.post;
     if (this.opts.locals.length === 1 && race.phase !== 'intro') {
@@ -293,6 +364,21 @@ export class RaceScreen implements Screen {
 
   private onTick() {
     const race = this.race;
+    if (this.opts.mode === 'tt' && race.phase === 'race') {
+      const k = race.karts[this.opts.locals[0]];
+      if (!k.finished && (race.ticks - 1) % GHOST_STEP === 0) {
+        const r = (v: number, m: number) => Math.round(v * m) / m;
+        this.ghostRec.push(r(k.pos.x, 100), r(k.pos.y, 100), r(k.pos.z, 100), r(k.quat.x, 1000), r(k.quat.y, 1000), r(k.quat.z, 1000), r(k.quat.w, 1000));
+      }
+      for (const { kart, ev } of race.events) {
+        if (kart !== this.opts.locals[0] || ev.k !== 'lap') continue;
+        if (ev.lap - 1 > this.lapTimes.length) {
+          this.lapTimes.push(race.time - this.lapStart);
+          this.lapStart = race.time;
+          this.refreshLaps();
+        }
+      }
+    }
     // countdown beeps & numbers
     if (race.phase === 'countdown') {
       const c = Math.ceil(race.countdown);
@@ -307,6 +393,8 @@ export class RaceScreen implements Screen {
       }
     } else if (race.phase === 'race' && this.lastCount !== 0) {
       this.lastCount = 0;
+      input.autoAccelArmed = true;
+      this.app.touch.sync();
       audio.sfx('beepGo');
       for (const hd of this.huds) hd.big('PARTEZ !', 'go');
     }
@@ -417,6 +505,18 @@ export class RaceScreen implements Screen {
           }
           break;
         case 'finish': {
+          if (this.opts.mode === 'tt') {
+            if (this.lapTimes.length < race.laps) this.lapTimes.push(race.time - this.lapStart);
+            this.refreshLaps();
+            this.ttResult = submitRun(this.opts.setup.track.id, k.finishTime, Math.min(...this.lapTimes), k.def.id, this.ghostRec);
+            audio.sfx('roundBell');
+            hud.big(fmtTime(k.finishTime), 'finish', 99);
+            if (this.ttResult.race) hud.message('NOUVEAU RECORD !', 'gold', 99);
+            else if (this.ttResult.lap) hud.message('MEILLEUR TOUR !', 'gold', 99);
+            if (cam) cam.mode = 'finish';
+            this.world!.views[kart].result = this.ttResult.race;
+            break;
+          }
           const pos = k.rank + 1;
           audio.sfx('roundBell');
           hud.big(ordinal(pos) + ' !', 'finish', 99);
@@ -501,6 +601,7 @@ export class RaceScreen implements Screen {
 
   private showResults() {
     this.resultsShown = true;
+    this.root.classList.add('covered');
     for (const e of this.engines) e?.set(0, 0, 0);
     this.app.touch.setCovered(true);
     const race = this.race;
@@ -525,7 +626,23 @@ export class RaceScreen implements Screen {
       ...(this.opts.mode !== 'gp' ? [{ label: 'MENU', action: () => this.quit() }] : []),
     ];
     this.resultsMenu = new Menu(items, () => audio.sfx('cursor'));
-    this.overlay = h('div', { class: 'overlay results' }, h('div', { class: 'h1' }, 'RÉSULTATS'), h('table', { class: 'results-table' }, ...rows), this.resultsMenu.el);
+    let table: HTMLElement = h('table', { class: 'results-table' }, ...rows);
+    let title = 'RÉSULTATS';
+    if (this.opts.mode === 'tt') {
+      // time trial: the laps, the total, the record
+      const k = race.karts[this.opts.locals[0]];
+      const best = Math.min(...this.lapTimes);
+      const rec = getRecord(this.opts.setup.track.id);
+      title = this.ttResult?.race ? 'NOUVEAU RECORD !' : 'CONTRE-LA-MONTRE';
+      table = h(
+        'table',
+        { class: 'results-table' },
+        ...this.lapTimes.map((t, i) => h('tr', { class: t === best ? 'me' : '' }, h('td', { class: 'rk' }, `T${i + 1}`), h('td', null, t === best ? 'MEILLEUR TOUR' : ''), h('td', { class: 'tt' }, fmtTime(t)))),
+        h('tr', { class: 'me' }, h('td', { class: 'rk' }, 'TOTAL'), h('td', null, k.def.name), h('td', { class: 'tt' }, fmtTime(k.finishTime))),
+        rec ? h('tr', null, h('td', { class: 'rk' }, 'REC'), h('td', null, `record : ${fmtTime(rec.best)} · meilleur tour : ${fmtTime(rec.lap)}`), h('td', null, '')) : null,
+      );
+    }
+    this.overlay = h('div', { class: 'overlay results' }, h('div', { class: 'h1' }, title), table, this.resultsMenu.el);
     uiRoot().append(this.overlay);
     audio.playMusic('victory', { loop: false });
   }

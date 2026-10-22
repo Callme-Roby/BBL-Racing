@@ -2,11 +2,11 @@ import { audio } from '../audio/audio';
 import type { App, Screen } from '../app';
 import type { FighterDef } from '../data/roster';
 import { input } from '../input/input';
-import { CIRCUITS } from '../race/circuits';
+import { CIRCUITS, CUPS, type Cup } from '../race/circuits';
 import { Track, type TrackDef } from '../race/track';
 import { Showroom } from '../render/showroom';
 import { backButton, h, uiRoot } from '../ui/dom';
-import { goMenu, quickRace } from './flow';
+import { goMenu, quickRace, startGrandPrix } from './flow';
 import type { SelectMode } from './select';
 
 /** Top view of a circuit drawn on a small canvas (cards, loading screens). */
@@ -69,10 +69,28 @@ export class CircuitSelectScreen implements Screen {
     this.showroom.slotCount = drivers.length;
   }
 
+  private get gp() {
+    return this.mode === 'gp';
+  }
+
+  /** cards: the cups (grand prix, also offered in split screen), then the circuits */
+  private get list(): (Cup | TrackDef)[] {
+    return this.gp ? CUPS : this.mode === 'split' ? [...CUPS, ...CIRCUITS] : CIRCUITS;
+  }
+
   enter() {
-    const list = CIRCUITS;
-    this.cards = list.map((def, i) => {
-      const card = h('div', { class: 'track-card' }, trackPreview(def), h('b', null, def.name), def.subtitle);
+    const list = this.list;
+    this.cards = list.map((item, i) => {
+      const isCup = 'tracks' in item;
+      const card = isCup
+        ? h(
+            'div',
+            { class: 'track-card cup', style: `--cup:${(item as (typeof CUPS)[number]).color}` },
+            h('div', { class: 'cup-tracks' }, ...(item as (typeof CUPS)[number]).tracks.map((t) => h('div', null, trackPreview(t, 120, 70), h('small', null, t.name)))),
+            h('b', null, h('span', { class: 'cup-badge', style: `--cup:${(item as (typeof CUPS)[number]).color}` }, item.name)),
+            'GRAND PRIX · 4 courses · points · podium',
+          )
+        : h('div', { class: 'track-card' }, trackPreview(item as (typeof CIRCUITS)[number]), h('b', null, item.name), (item as (typeof CIRCUITS)[number]).subtitle);
       card.addEventListener('click', () => {
         if (this.index === i) this.go();
         else {
@@ -84,7 +102,7 @@ export class CircuitSelectScreen implements Screen {
       return card;
     });
     uiRoot().append(
-      h('div', { class: 'screen circuit-select' }, h('div', { class: 'h1' }, 'CHOISIS LE CIRCUIT'), h('div', { class: 'track-cards' }, ...this.cards), h('div', { class: 'footer-hint' }, 'Entrée / touche deux fois : c’est parti')),
+      h('div', { class: 'screen circuit-select' }, h('div', { class: 'h1' }, this.gp ? 'CHOISIS LA COUPE' : this.mode === 'split' ? 'GRAND PRIX OU COURSE ?' : 'CHOISIS LE CIRCUIT'), h('div', { class: 'track-cards' }, ...this.cards), h('div', { class: 'footer-hint' }, 'Entrée / touche deux fois : c’est parti')),
       backButton(() => goMenu()),
     );
     this.drivers.forEach((d, i) => void this.showroom.show(i, d));
@@ -101,8 +119,13 @@ export class CircuitSelectScreen implements Screen {
 
   private go() {
     audio.sfx('confirm');
+    const item = this.list[this.index];
+    if ('tracks' in item) {
+      startGrandPrix(item, this.drivers);
+      return;
+    }
     const mode = this.mode === 'tt' ? 'tt' : this.mode === 'split' ? 'split' : 'race';
-    quickRace(mode, this.drivers, CIRCUITS[this.index]);
+    quickRace(mode, this.drivers, item);
   }
 
   frame(dt: number) {

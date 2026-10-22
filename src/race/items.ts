@@ -74,7 +74,12 @@ export class ItemSystem implements RaceSystem {
   constructor(private race: Race) {
     const n = race.karts.length;
     this.holds = race.karts.map(() => ({ item: null, count: 0, roll: 0, next: null }));
-    this.boxes = race.track.boxes.map(() => ({ respawn: 0 }));
+    // time trial: no boxes, three turbo cans to use wisely
+    this.boxes = race.setup.timeTrial ? [] : race.track.boxes.map(() => ({ respawn: 0 }));
+    if (race.setup.timeTrial)
+      race.setup.racers.forEach((r, i) => {
+        if (r.local !== undefined) this.holds[i] = { item: 'turbo3', count: 3, roll: 0, next: null };
+      });
     this.aiTimers = race.karts.map(() => 0);
     this.rocket = new Array(n).fill(0);
     this.confused = new Array(n).fill(0);
@@ -112,6 +117,7 @@ export class ItemSystem implements RaceSystem {
     // boxes
     race.track.boxes.forEach((spot, bi) => {
       const b = this.boxes[bi];
+      if (!b) return;
       if (b.respawn > 0) {
         b.respawn = Math.max(0, b.respawn - DT);
         return;

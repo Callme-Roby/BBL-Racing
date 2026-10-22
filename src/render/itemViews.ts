@@ -146,7 +146,7 @@ export class ItemViews {
       cols.push(c.r, c.g, c.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    for (const spot of race.track.boxes) {
+    for (const spot of items.boxes.length ? race.track.boxes : []) {
       const g = new THREE.Group();
       const m = new THREE.Mesh(geo, this.boxMat);
       g.add(m);

@@ -270,6 +270,42 @@ export class RacerView {
     this.driver.pose(this.clip, (this.time - this.clipStart) * 60, dt * 60, this.clipKey, 6);
   }
 
+  /** Time trial ghost: placed from a recording (no kart physics behind it). */
+  placeGhost(pos: THREE.Vector3, quat: THREE.Quaternion, dt: number, speed: number) {
+    this.time += dt;
+    const root = this.kart.root;
+    root.position.copy(pos);
+    root.quaternion.copy(quat);
+    this.wheelSpin += (speed / this.kart.wheelR) * dt;
+    for (const w of this.kart.wheels) w.rotation.x = this.wheelSpin;
+    root.updateMatrixWorld(true);
+    this.kart.seat.matrixWorld.decompose(tmpV, tmpQ, tmpS);
+    this.driver.root.position.copy(tmpV);
+    this.driver.root.quaternion.copy(tmpQ);
+    this.setClip('kart:sit');
+    this.driver.pose(this.clip, (this.time - this.clipStart) * 60, dt * 60, this.clipKey, 6);
+  }
+
+  /** see-through look of the time trial ghost */
+  makeGhost(opacity = 0.45) {
+    const mats: THREE.Material[] = [];
+    this.kart.root.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (m) mats.push(...(Array.isArray(m) ? m : [m]));
+    });
+    for (const m of [...mats, ...this.driver.model.materials]) {
+      m.transparent = true;
+      m.depthWrite = false;
+      const u = (m as THREE.ShaderMaterial).uniforms;
+      if (u?.uOpacity) u.uOpacity.value = opacity;
+      if (u?.uFlash) {
+        u.uFlash.value = 0.35;
+        u.uFlashColor.value.setRGB(0.6, 0.9, 1);
+      }
+    }
+    this.fx = false;
+  }
+
   private setClip(clip: string, key = clip) {
     if (key !== this.clipKey) {
       this.clipKey = key;

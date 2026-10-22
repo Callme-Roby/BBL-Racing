@@ -1,0 +1,152 @@
+/* BBL KART touch controls (on top of mobile-game.css): steering stick, GAZ / FREIN / DRIFT / OBJET. */
+
+#touch .btns.kart b {
+  position: absolute;
+  width: calc(var(--tu) * 66);
+  height: calc(var(--tu) * 66);
+}
+
+/* landscape: a diamond in the bottom-right corner, GAZ the biggest */
+#touch .btns.kart {
+  width: calc(var(--tu) * 210);
+  height: calc(var(--tu) * 190);
+}
+
+#touch .btns.kart .accel {
+  right: 0;
+  bottom: calc(var(--tu) * 40);
+  width: calc(var(--tu) * 84);
+  height: calc(var(--tu) * 84);
+  border-color: rgba(255, 210, 58, 0.7);
+  background: rgba(255, 210, 58, 0.16);
+}
+
+#touch .btns.kart .accel.auto {
+  opacity: 0.55;
+}
+
+#touch .btns.kart .brake {
+  right: calc(var(--tu) * 92);
+  bottom: 0;
+}
+
+#touch .btns.kart .drift {
+  right: calc(var(--tu) * 96);
+  bottom: calc(var(--tu) * 76);
+  border-color: rgba(120, 200, 255, 0.7);
+}
+
+#touch .btns.kart .item {
+  right: calc(var(--tu) * 24);
+  bottom: calc(var(--tu) * 132);
+  border-color: rgba(41, 215, 196, 0.8);
+}
+
+#touch .btns.kart .item .icon {
+  position: absolute;
+  inset: 16%;
+  background: center / contain no-repeat;
+  image-rendering: pixelated;
+}
+
+#touch .btns.kart .item.has span {
+  opacity: 0;
+}
+
+#touch .btns.kart .item.rolling .icon {
+  animation: rh-roll 0.12s steps(2) infinite;
+}
+
+#touch .pad.steer .arr {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
+  font-size: calc(var(--tu) * 14);
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+
+#touch .pad.steer .arr.l {
+  left: 8%;
+}
+
+#touch .pad.steer .arr.r {
+  right: 8%;
+}
+
+/* portrait deck: stick on the left, the four buttons in a 2×2 grid on the right */
+#app.split #touch .btns.kart {
+  display: grid;
+  grid-template-columns: repeat(2, calc(var(--tu) * 90));
+  grid-template-areas:
+    'item brake'
+    'drift accel';
+  gap: calc(var(--tu) * 14);
+}
+
+#app.split #touch .btns.kart b {
+  position: relative;
+  inset: auto;
+  width: calc(var(--tu) * 86);
+  height: calc(var(--tu) * 86);
+}
+
+#app.split #touch .btns.kart .accel {
+  grid-area: accel;
+  width: calc(var(--tu) * 96);
+  height: calc(var(--tu) * 96);
+}
+
+#app.split #touch .btns.kart .brake {
+  grid-area: brake;
+}
+
+#app.split #touch .btns.kart .drift {
+  grid-area: drift;
+}
+
+#app.split #touch .btns.kart .item {
+  grid-area: item;
+}
+
+/* the race HUD stays in the game view (portrait: above the deck) */
+#app.split .race-screen .rhud,
+#app.split .race-screen .race-title {
+  max-height: var(--game-h);
+}
+
+#app.split .rhud {
+  height: var(--game-h) !important;
+  bottom: auto !important;
+  top: 0;
+}
+
+#app.split .rh-list {
+  display: none;
+}
+
+/* landscape touch: the minimap goes above the stick, the position list is hidden */
+#app.touchui:not(.split) .minimap {
+  left: auto;
+  right: max(12px, env(safe-area-inset-right));
+  top: calc(max(10px, env(safe-area-inset-top)) + 70px);
+  bottom: auto;
+  width: 96px;
+}
+
+#app.touchui:not(.split) .rh-list {
+  display: none;
+}
+
+#app.touchui:not(.split) .rh-pos {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(6px, env(safe-area-inset-bottom));
+  font-size: 60px;
+}
+
+#app.touchui:not(.split) .rh-time {
+  margin-right: 70px;
+}

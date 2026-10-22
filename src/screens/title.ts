@@ -7,7 +7,8 @@ import { CIRCUITS } from '../race/circuits';
 import { DT } from '../race/kart';
 import { Race } from '../race/race';
 import { h, isTouchUi, Menu, uiRoot } from '../ui/dom';
-import { goLab, goOptions, goSelect, shuffled } from './flow';
+import { goLab, goOptions, goSelect } from './flow';
+import { shuffled } from '../game/grid';
 
 /** CPU race playing behind the title menu, filmed by trackside cameras. */
 class Attract {

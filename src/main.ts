@@ -9,8 +9,9 @@ import { roomFromUrl } from './net/peer';
 import * as flow from './screens/flow';
 import { goTitle, initFlow } from './screens/flow';
 import { ROSTER } from './data/roster';
-import { CIRCUITS } from './race/circuits';
+import { CIRCUITS, CUPS } from './race/circuits';
 import { goOnlineJoin } from './screens/online';
+import { GrandPrix } from './game/grandPrix';
 
 function boot() {
   const app = new App();
@@ -32,6 +33,21 @@ function boot() {
       const defs = ids.map((id) => ROSTER.find((f) => f.id === id) ?? ROSTER[0]);
       const t = CIRCUITS.find((c) => c.id === track) ?? CIRCUITS[0];
       flow.quickRace(mode ?? (defs.length > 1 ? 'split' : 'race'), defs, t);
+    };
+    // ?debug: the podium of a pretend grand prix, e.g. bblPodium('zia')
+    (window as unknown as { bblPodium: unknown }).bblPodium = (who: string) => {
+      const gp = new GrandPrix(CUPS[0], [ROSTER.find((f) => f.id === who) ?? ROSTER[0]]);
+      gp.entries.forEach((e, i) => {
+        e.points = (gp.entries.length - i) * 7;
+        e.results = [i, i, i, i];
+      });
+      gp.race = 4;
+      flow.goPodium(gp);
+    };
+    // ?debug: a grand prix straight away, e.g. bblGP('zia'), bblGP(['zia','dylan'], 1)
+    (window as unknown as { bblGP: unknown }).bblGP = (who: string | string[], cup = 0) => {
+      const ids = Array.isArray(who) ? who : [who];
+      flow.startGrandPrix(CUPS[cup] ?? CUPS[0], ids.map((id) => ROSTER.find((f) => f.id === id) ?? ROSTER[0]));
     };
   }
 }

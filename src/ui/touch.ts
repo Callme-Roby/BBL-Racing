@@ -119,9 +119,10 @@ export class TouchControls {
 
   private flush() {
     const auto = settings.autoAccel && this.shown;
+    const armed = input.autoAccelArmed;
     input.touch = {
       steer: this.steer,
-      accel: this.held.accel || (auto && !this.held.brake),
+      accel: this.held.accel || (auto && armed && !this.held.brake),
       brake: this.held.brake,
       drift: this.held.drift,
       item: this.held.item,
@@ -129,6 +130,11 @@ export class TouchControls {
       aim: this.aim,
     };
     this.accelBtn.classList.toggle('auto', auto);
+  }
+
+  /** re-evaluate auto-acceleration (the race just started / ended) */
+  sync() {
+    this.flush();
   }
 
   private release() {
