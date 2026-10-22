@@ -66,7 +66,7 @@ class MiniMap {
       ctx.stroke();
     }
     // anti-gravity in blue
-    const ag = track.def.features.antigrav ?? [];
+    const ag = (track.def.features.antigrav ?? []).map((sp) => track.main.spanOf(sp));
     for (const [a, b] of ag) {
       ctx.beginPath();
       for (let s = a; s <= b; s += 2) {

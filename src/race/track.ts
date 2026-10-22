@@ -21,12 +21,22 @@ import * as THREE from 'three';
 
 export type Theme = 'hood' | 'dojo' | 'parking' | 'beach';
 
-/** [x, y, z, half width (default 7), banking in degrees (+ = right side lower), antigrav] */
+/** [x, y, z, half width (default 7), banking in degrees (+ = right side lower)] */
 export type CtrlPoint = [number, number, number, number?, number?];
 
-export interface RampDef {
-  /** start of the slope (m from the start line) */
-  s: number;
+/**
+ * Where a feature goes along the main line: `s` = metres from the start line, or `at` = a
+ * (fractional) control point index — 2.5 = halfway between points 2 and 3 (easier to author).
+ */
+export interface Along {
+  s?: number;
+  at?: number;
+}
+
+/** a stretch of the main line: [s0, s1] in metres, or { at: [a0, a1] } in control points */
+export type Span = [number, number] | { at: [number, number] };
+
+export interface RampDef extends Along {
   /** length of the slope */
   len: number;
   /** height gained at the lip */
@@ -34,10 +44,11 @@ export interface RampDef {
   /** lateral extent (default: the whole road) */
   d0?: number;
   d1?: number;
+  /** metres of void after the lip: jump over it! */
+  gap?: number;
 }
 
-export interface PadDef {
-  s: number;
+export interface PadDef extends Along {
   /** lateral offset of the pad centre (+ = right) */
   d: number;
   /** half width / length */
@@ -46,17 +57,15 @@ export interface PadDef {
 }
 
 export interface WallDef {
-  s0: number;
-  s1: number;
+  span: Span;
   side: 'left' | 'right' | 'both';
 }
 
 export interface BranchDef {
   /** points of the branch, from where it leaves the main line to where it joins it again */
   points: CtrlPoint[];
-  /** main-line distances of the two ends (progress maps linearly between them) */
-  s0: number;
-  s1: number;
+  /** main-line stretch it bypasses (progress maps linearly between its ends) */
+  span: Span;
   surface?: 'road' | 'dirt';
   /** boost pads on the branch (s along the branch) */
   boosts?: PadDef[];
@@ -65,10 +74,10 @@ export interface BranchDef {
 export interface TrackFeatures {
   ramps?: RampDef[];
   boosts?: PadDef[];
-  /** rows of item boxes (s along the main line); `n` boxes across (default 4) */
-  items?: { s: number; n?: number; spread?: number }[];
-  /** anti-gravity sections [s0, s1] */
-  antigrav?: [number, number][];
+  /** rows of item boxes; `n` boxes across (default 4) */
+  items?: (Along & { n?: number; spread?: number })[];
+  /** anti-gravity sections */
+  antigrav?: Span[];
   /** barriers along the edges */
   walls?: WallDef[];
   branches?: BranchDef[];
@@ -110,6 +119,8 @@ export interface RibbonSample {
   ramp: number;
   wallL: boolean;
   wallR: boolean;
+  /** no road here (jump over it) */
+  gap: boolean;
 }
 
 export type Surface = 'road' | 'curb' | 'offroad' | 'dirt' | 'void';
@@ -150,17 +161,21 @@ export class Ribbon {
   readonly s0: number;
   readonly s1: number;
   readonly isMain: boolean;
+  /** distance of each control point (the last one = length for a closed ribbon) */
+  readonly ctrlS: number[] = [];
+  readonly nCtrl: number;
 
   constructor(
     points: CtrlPoint[],
     closed: boolean,
-    opts: { surface?: 'road' | 'dirt'; s0?: number; s1?: number; ramps?: RampDef[]; antigrav?: [number, number][]; walls?: WallDef[]; main?: boolean },
+    opts: { surface?: 'road' | 'dirt'; s0?: number; s1?: number; ramps?: RampDef[]; antigrav?: Span[]; walls?: WallDef[]; main?: boolean },
   ) {
     this.closed = closed;
     this.surface = opts.surface ?? 'road';
     this.s0 = opts.s0 ?? 0;
     this.s1 = opts.s1 ?? 0;
     this.isMain = !!opts.main;
+    this.nCtrl = points.length;
     const curve = new THREE.CatmullRomCurve3(
       points.map((p) => new THREE.Vector3(p[0], p[1], p[2])),
       closed,
@@ -191,6 +206,8 @@ export class Ribbon {
       cum.push(total);
     }
     this.length = total;
+    // distance of every control point (features placed with `at`)
+    for (let i = 0; i <= segs; i++) this.ctrlS.push(cum[Math.min(cum.length - 1, i * per)]);
     const count = Math.max(8, Math.round(total / 1.0));
     const step = total / count;
     let k = 0;
@@ -205,18 +222,24 @@ export class Ribbon {
       raw.push({ p: A.p.clone().lerp(B.p, a), w: A.w + (B.w - A.w) * a, bank: A.bank + (B.bank - A.bank) * a, s });
     }
     // ramps raise the road (baked into the samples, so the frames follow the slope)
-    const rampAt = (s: number): { y: number; on: number } => {
+    const rampAt = (s: number): { y: number; on: number; gap: boolean } => {
       for (const r of opts.ramps ?? []) {
-        if (r.d0 !== undefined) continue; // partial ramps are separate objects (see rampsAt)
-        if (s >= r.s && s <= r.s + r.len) {
-          const x = (s - r.s) / r.len;
-          return { y: r.h * Math.pow(x, 1.6), on: 1 };
+        const r0 = this.sOf(r);
+        if (r.gap && s > r0 + r.len && s < r0 + r.len + r.gap) return { y: 0, on: 0, gap: true };
+        if (r.d0 !== undefined) continue; // partial ramps are separate objects (see Track.kickerAt)
+        if (s >= r0 && s <= r0 + r.len) {
+          const x = (s - r0) / r.len;
+          return { y: r.h * Math.pow(x, 1.6), on: 1, gap: false };
         }
       }
-      return { y: 0, on: 0 };
+      return { y: 0, on: 0, gap: false };
     };
-    const inRange = (s: number, list: [number, number][] | undefined) => !!list?.some(([a, b]) => s >= a && s <= b);
-    const wallOn = (s: number, side: 'left' | 'right') => !!opts.walls?.some((wl) => s >= wl.s0 && s <= wl.s1 && (wl.side === side || wl.side === 'both'));
+    const inRange = (s: number, list: Span[] | undefined) =>
+      !!list?.some((sp) => {
+        const [a, b] = this.spanOf(sp);
+        return a <= b ? s >= a && s <= b : s >= a || s <= b;
+      });
+    const wallOn = (s: number, side: 'left' | 'right') => !!opts.walls?.some((wl) => (wl.side === side || wl.side === 'both') && inRange(s, [wl.span]));
     for (const r of raw) {
       const ra = rampAt(r.s);
       r.p.y += ra.y;
@@ -231,6 +254,7 @@ export class Ribbon {
         ramp: ra.on,
         wallL: wallOn(r.s, 'left'),
         wallR: wallOn(r.s, 'right'),
+        gap: ra.gap,
       });
     }
     const N = this.samples.length;
@@ -263,6 +287,19 @@ export class Ribbon {
 
   get count() {
     return this.samples.length;
+  }
+
+  /** distance along the ribbon of a feature placed with `s` or `at` */
+  sOf(f: Along): number {
+    if (f.at === undefined) return f.s ?? 0;
+    const n = this.ctrlS.length - 1;
+    const a = this.closed ? ((f.at % n) + n) % n : Math.max(0, Math.min(n, f.at));
+    const i = Math.min(n - 1, Math.floor(a));
+    return this.ctrlS[i] + (this.ctrlS[i + 1] - this.ctrlS[i]) * (a - i);
+  }
+
+  spanOf(sp: Span): [number, number] {
+    return Array.isArray(sp) ? sp : [this.sOf({ at: sp.at[0] }), this.sOf({ at: sp.at[1] })];
   }
 
   sample(j: number): RibbonSample {
@@ -400,31 +437,41 @@ export class Track {
   readonly shoulder: number;
   readonly hasVoid: boolean;
   readonly groundY: number;
+  /** stretches with no road (after a ramp) */
+  readonly gaps: [number, number][] = [];
   /** partial ramps (a kicker on one side of the road): extra solid wedges */
   readonly kickers: { ribbon: Ribbon; s: number; len: number; h: number; d0: number; d1: number }[] = [];
 
   constructor(readonly def: TrackDef) {
     const f = def.features;
     this.main = new Ribbon(def.points, true, { ramps: f.ramps, antigrav: f.antigrav, walls: f.walls, main: true });
-    this.branches = (f.branches ?? []).map((b) => new Ribbon(b.points, false, { surface: b.surface ?? 'dirt', s0: b.s0, s1: b.s1 }));
+    this.branches = (f.branches ?? []).map((b) => {
+      const [s0, s1] = this.main.spanOf(b.span);
+      return new Ribbon(b.points, false, { surface: b.surface ?? 'dirt', s0, s1: s1 < s0 ? s1 + this.main.length : s1 });
+    });
     this.ribbons = [this.main, ...this.branches];
     this.shoulder = f.shoulder ?? 3;
     this.hasVoid = !!f.void;
     this.groundY = f.groundY ?? 0;
     for (const row of f.items ?? []) {
       const n = row.n ?? 4;
-      const sm = this.main.sample(this.main.indexAt(row.s));
+      const rs = this.main.sOf(row);
+      const sm = this.main.sample(this.main.indexAt(rs));
       const spread = row.spread ?? sm.w * 0.62;
       for (let k = 0; k < n; k++) {
         const d = n === 1 ? 0 : -spread + (2 * spread * k) / (n - 1);
-        this.boxes.push({ pos: sm.p.clone().addScaledVector(sm.r, d).addScaledVector(sm.u, 1.0), up: sm.u.clone(), s: row.s });
+        this.boxes.push({ pos: sm.p.clone().addScaledVector(sm.r, d).addScaledVector(sm.u, 1.0), up: sm.u.clone(), s: rs });
       }
     }
-    for (const b of f.boosts ?? []) this.boosts.push({ ribbon: this.main, s: b.s, d: b.d, w: b.w ?? 1.6, len: b.len ?? 4 });
+    for (const b of f.boosts ?? []) this.boosts.push({ ribbon: this.main, s: this.main.sOf(b), d: b.d, w: b.w ?? 1.6, len: b.len ?? 4 });
     (f.branches ?? []).forEach((bd, i) => {
-      for (const b of bd.boosts ?? []) this.boosts.push({ ribbon: this.branches[i], s: b.s, d: b.d, w: b.w ?? 1.6, len: b.len ?? 4 });
+      for (const b of bd.boosts ?? []) this.boosts.push({ ribbon: this.branches[i], s: this.branches[i].sOf(b), d: b.d, w: b.w ?? 1.6, len: b.len ?? 4 });
     });
-    for (const r of f.ramps ?? []) if (r.d0 !== undefined) this.kickers.push({ ribbon: this.main, s: r.s, len: r.len, h: r.h, d0: r.d0, d1: r.d1 ?? r.d0 + 3 });
+    for (const r of f.ramps ?? []) if (r.d0 !== undefined) this.kickers.push({ ribbon: this.main, s: this.main.sOf(r), len: r.len, h: r.h, d0: r.d0, d1: r.d1 ?? r.d0 + 3 });
+    for (const r of f.ramps ?? []) if (r.gap) {
+      const s0 = this.main.sOf(r) + r.len;
+      this.gaps.push([s0, s0 + r.gap]);
+    }
   }
 
   get length() {

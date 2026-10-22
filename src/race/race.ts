@@ -4,6 +4,7 @@ import { kartStatsOf } from '../data/kartStats';
 import type { FighterDef } from '../data/roster';
 import { NO_INPUT, type KartInput } from '../input/input';
 import { KartAI } from './ai';
+import { ItemSystem } from './items';
 import { DT, Kart, type KartEvent } from './kart';
 import { Track, type TrackDef } from './track';
 
@@ -83,7 +84,14 @@ export class Race {
     this.ais = setup.racers.map((r, i) => (r.local === undefined && !r.remote ? new KartAI(this.karts[i], setup.difficulty, setup.seed + i * 7) : null));
     this.order = this.karts.map((_, i) => i);
     this.updateOrder();
+    if (setup.items && !setup.timeTrial) {
+      this.items = new ItemSystem(this);
+      this.systems.push(this.items);
+    }
   }
+
+  /** the items (null in time trials / items off) */
+  items: ItemSystem | null = null;
 
   get countdown(): number {
     return this.phase === 'countdown' ? Math.max(0, Race.COUNT - this.phaseTicks) / 60 : 0;

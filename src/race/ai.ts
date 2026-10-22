@@ -76,6 +76,7 @@ export class KartAI {
   private wobble = 0;
   private driftHold = false;
   private driftDir = 0;
+  private driftWait = 0;
   private targetTier: number;
   /** speed factor applied by the race (rubber band), read by Race */
   speedScale = 1;
@@ -96,7 +97,11 @@ export class KartAI {
 
   think(_track: Track, time: number): KartInput {
     const k = this.kart;
-    if (k.rescueT > 0 || k.spinT > 0) return { ...NO_INPUT, accel: true };
+    if (k.rescueT > 0 || k.spinT > 0) {
+      this.driftHold = false;
+      this.driftWait = 0;
+      return { ...NO_INPUT, accel: true };
+    }
     const rb = k.loc.ribbon;
     const line = racingLine(rb);
     const curv = curvatureOf(rb);
@@ -146,8 +151,14 @@ export class KartAI {
           this.driftHold = true;
           this.driftDir = Math.sign(needAhead);
         }
-        if (this.driftHold) inp.steer = this.driftDir;
+        if (this.driftHold) {
+          inp.steer = this.driftDir;
+          // the hop never turned into a drift (button already held, too slow…): let go
+          this.driftWait += 1 / 60;
+          if (this.driftWait > 0.5) this.driftHold = false;
+        }
       } else {
+        this.driftWait = 0;
         const d = k.drift;
         // what normal steering would ask, mapped into the drift's range (0.36 .. 1.2 of the turn rate)
         const want = (ang * this.level.steerGain + needNow / turn) * 0.5 * d;

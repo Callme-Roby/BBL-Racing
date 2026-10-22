@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { KartStats } from '../data/kartStats';
 import type { FighterDef } from '../data/roster';
 import type { KartInput } from '../input/input';
+import type { ItemId } from './itemDefs';
+import type { ObjKind } from './items';
 import { newLocate, type Locate, type Ribbon, type Surface, type Track } from './track';
 
 /**
@@ -41,7 +43,13 @@ export type KartEvent =
   | { k: 'rescued' }
   | { k: 'spin' }
   | { k: 'lap'; lap: number }
-  | { k: 'finish' };
+  | { k: 'finish' }
+  | { k: 'itemBox' }
+  | { k: 'itemGot'; item: ItemId }
+  | { k: 'itemUse'; item: ItemId }
+  | { k: 'itemHit'; item: ItemId | ObjKind; by: number }
+  | { k: 'itemBlock'; item: ObjKind }
+  | { k: 'rocketEnd' };
 
 export interface KartParams {
   top: number;
@@ -252,6 +260,8 @@ export class Kart {
     const limit = l.w + tr.shoulder;
     const sample = l.ribbon.sample(Math.round(l.i));
     const wallSide: 0 | -1 | 1 = l.d > 0 ? (sample.wallR ? 1 : 0) : sample.wallL ? -1 : 0;
+    // the void (or the canal) of a jump
+    if (sample.gap) return null;
     if (ad <= limit || (wallSide !== 0 && ad <= limit + 3)) {
       const kick = tr.kickerAt(l.ribbon, l.s, l.d);
       const point = this.gPoint.copy(l.point).addScaledVector(l.up, kick);
@@ -296,7 +306,14 @@ export class Kart {
     if (this.rescueT > 0) return;
     this.rescueT = 2.4;
     this.events.push({ k: 'fall' });
-    this.rescueTarget = { s: this.safeS, d: Math.max(-2, Math.min(2, this.safeD * 0.4)) };
+    let s = this.safeS;
+    // fell into the gap of a jump: put back after it, not on the ramp before it
+    const L = this.track.length;
+    for (const [g0, g1] of this.track.gaps) {
+      const before = (((g0 - s) % L) + L) % L;
+      if (before < 45 || (s >= g0 && s <= g1)) s = g1 + 6;
+    }
+    this.rescueTarget = { s, d: Math.max(-2, Math.min(2, this.safeD * 0.4)) };
     this.drift = 0;
     this.driftCharge = 0;
     this.boostT = 0;

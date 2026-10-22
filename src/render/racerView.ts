@@ -201,7 +201,8 @@ export class RacerView {
     }
     // star: rainbow glow
     if (k.starT > 0) {
-      this.tint.setHSL((this.time * 2) % 1, 1, 0.6);
+      // SUPER SAYAN: a golden, pulsing glow
+      this.tint.setRGB(1, 0.78 + 0.18 * Math.sin(this.time * 18), 0.25);
       for (const m of this.kart.materials) {
         m.uniforms.uFlash.value = 0.45;
         m.uniforms.uFlashColor.value.copy(this.tint);
@@ -230,7 +231,7 @@ export class RacerView {
     // ---- trails during turbos
     const boosting = k.boostT > 0 || k.starT > 0;
     let ghostTint: THREE.Color | null = null;
-    if (boosting && (k.starT > 0 || k.boostPower >= 1 || (k.boostKind === 'drift' && k.boostT > 0.4))) ghostTint = this.tint.set(k.starT > 0 ? new THREE.Color().setHSL((this.time * 2) % 1, 1, 0.6) : k.boostKind === 'drift' ? 0xff8a30 : 0xffc040);
+    if (boosting && (k.starT > 0 || k.boostPower >= 1 || (k.boostKind === 'drift' && k.boostT > 0.4))) ghostTint = this.tint.set(k.starT > 0 ? 0xffd040 : k.boostKind === 'drift' ? 0xff8a30 : 0xffc040);
     this.ghosts.update(body, ghostTint, dtF, 4);
     this.driver.updateTrail(ghostTint, dtF, 4, 0.28);
 

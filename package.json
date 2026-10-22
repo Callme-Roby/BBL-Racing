@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "sim": "esbuild dev/simTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/simtest.cjs && node node_modules/.cache/simtest.cjs"
+    "sim": "esbuild dev/simTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/simtest.cjs && node node_modules/.cache/simtest.cjs",
+    "map": "esbuild dev/trackMap.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/trackmap.cjs && node node_modules/.cache/trackmap.cjs"
   },
   "dependencies": {
     "peerjs": "1.5.5",

@@ -9,6 +9,7 @@ import { Race, type RaceSetup } from '../race/race';
 import { RaceWorld, splitLayout, type ViewRect } from '../game/raceWorld';
 import { h, Menu, uiRoot } from '../ui/dom';
 import { fmtTime, ordinal, RaceHud } from '../ui/raceHud';
+import { ALL_ITEMS, itemIcon, type ItemId } from '../race/itemDefs';
 import { goMenu } from './flow';
 
 export type RaceMode = 'race' | 'gp' | 'tt' | 'split' | 'online';
@@ -179,7 +180,8 @@ export class RaceScreen implements Screen {
       if (auto && this.race.phase === 'race') {
         let ai = this.autoAIs.get(ki);
         if (!ai) this.autoAIs.set(ki, (ai = new KartAI(this.race.karts[ki], 'hard', ki)));
-        out[ki] = ai.think(this.race.track, this.race.time);
+        const kb = out[ki]!;
+        out[ki] = { ...ai.think(this.race.track, this.race.time), item: kb.item, aim: kb.aim };
       }
     });
     return out;
@@ -238,6 +240,7 @@ export class RaceScreen implements Screen {
       world.render(this.app.pipeline, alpha, dt, this.rects, this.app.aspect);
     }
     for (const hd of this.huds) hd.update(dt, this.opts.locals);
+    this.updateItemSlots();
     // manga speed lines while boosting (one player: they cover the whole picture)
     const post = this.app.pipeline.post;
     if (this.opts.locals.length === 1 && race.phase !== 'intro') {
@@ -315,8 +318,15 @@ export class RaceScreen implements Screen {
         // others: only the loud things, quieter with distance
         const near = this.world ? Math.min(...this.world.cams.map((c) => c.kart.pos.distanceTo(k.pos))) : 99;
         const vol = Math.max(0, 1 - near / 40) * 0.6;
+        if (ev.k === 'itemHit' && this.opts.locals.includes(ev.by)) {
+          // one of mine hit somebody
+          const me = this.opts.locals.indexOf(ev.by);
+          this.huds[me]?.message(`${k.def.name} EST TOUCHÉ !`, 'gold', 1.2);
+          audio.sfx('ding', { volume: 0.6 });
+        }
         if (vol > 0.05) {
           if (ev.k === 'spin') audio.sfx('crash', { volume: vol });
+          else if (ev.k === 'itemUse') this.itemSound(ev.item, vol * 0.7);
           else if (ev.k === 'boost' && ev.kind !== 'drift') audio.sfx('turbo', { volume: vol * 0.6 });
           else if (ev.k === 'bonk' && ev.strength > 0.4) audio.sfx('bonk', { volume: vol * 0.7 });
         }
@@ -370,6 +380,32 @@ export class RaceScreen implements Screen {
         case 'rescued':
           audio.sfx('thwip');
           break;
+        case 'itemBox':
+          audio.sfx('itemBox');
+          break;
+        case 'itemGot':
+          audio.sfx('itemGet');
+          break;
+        case 'itemUse':
+          this.itemSound(ev.item, 1);
+          if (ev.item === 'config') for (const hd of this.huds) if (hd !== hud) hd.message('« C’EST QUOI TA CONFIG ? »', 't2', 2.2);
+          if (ev.item === 'sayan') hud.message('SUPER SAYAN !', 'gold', 1.5);
+          if (ev.item === 'bazooka') hud.message('BAZOOKA !', 'red', 1.5);
+          break;
+        case 'itemHit': {
+          const by = race.karts[ev.by];
+          const short: Record<string, string> = { ball: 'LE BALLON', words: 'LA MÉTA', grenade: 'LA GRENADE', mic: 'LA PUNCHLINE', web: 'LA TOILE', sauce: 'LA SAUCE' };
+          const what = short[ev.item] ?? 'ÇA';
+          const line =
+            ev.item === 'config' ? '« C’EST QUOI TA CONFIG ? »' : ev.by === kart ? `OUPS ! ${what}, C’ÉTAIT LA TIENNE…` : `${by ? by.def.name : '???'} T’A EU AVEC ${what} !`;
+          hud.message(line, 'red', 1.8);
+          audio.sfx(ev.item === 'web' || ev.item === 'sauce' ? 'splat' : 'crash');
+          cam?.shake(0.35);
+          break;
+        }
+        case 'itemBlock':
+          audio.sfx('shine');
+          break;
         case 'lap':
           if (ev.lap === race.laps) {
             audio.sfx('lap', { pitch: 1.2 });
@@ -391,6 +427,53 @@ export class RaceScreen implements Screen {
           if (pos <= 3) setTimeout(() => void audio.say(k.def.winLines[Math.floor(Math.random() * k.def.winLines.length)] ?? '', k.def.voice ?? {}), 600);
           break;
         }
+      }
+    }
+  }
+
+  private itemSound(item: ItemId, volume: number) {
+    const map: Partial<Record<ItemId, Parameters<typeof audio.sfx>[0]>> = {
+      turbo: 'turbo',
+      turbo3: 'turbo',
+      sauce: 'toss',
+      web: 'thwip',
+      ball: 'dash',
+      ball3: 'dash',
+      words: 'zap',
+      grenade: 'pin',
+      mic: 'rocket',
+      sayan: 'powerUp',
+      bazooka: 'rocket',
+      config: 'crowdOoh',
+    };
+    const id = map[item];
+    if (id) audio.sfx(id, { volume });
+  }
+
+  /** item slots of the HUDs (and the touch button): the roulette cycles through the icons */
+  private updateItemSlots() {
+    const items = this.race.items;
+    this.opts.locals.forEach((ki, p) => {
+      const hud = this.huds[p];
+      if (!items) {
+        hud.setItem(null, 0, false);
+        return;
+      }
+      const h = items.holds[ki];
+      let url: string | null = null;
+      if (h.roll > 0) url = itemIcon(ALL_ITEMS[Math.floor(this.race.ticks / 4) % ALL_ITEMS.length]);
+      else if (h.item) url = itemIcon(h.item);
+      hud.setItem(url, h.count, h.roll > 0);
+      if (p === 0) this.app.touch.setItem(url, h.roll > 0);
+      if (h.roll > 0 && this.race.ticks % 4 === 0) audio.sfx('roulette', { volume: 0.4 });
+    });
+    // explosions near a local camera
+    const w = this.world;
+    if (w?.items) {
+      for (const b of w.items.booms) {
+        const near = Math.min(...w.cams.map((c) => c.kart.pos.distanceTo(b.pos)));
+        audio.sfx('explosion', { volume: Math.max(0.15, 1 - near / 60) });
+        if (near < 15) for (const c of w.cams) c.shake(0.4 * (1 - near / 15));
       }
     }
   }

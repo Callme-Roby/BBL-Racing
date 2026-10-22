@@ -283,6 +283,7 @@ export function buildTrackEnv(track: Track): TrackEnv {
   const padMat = decal(kit.mat({ map: padTex, unlit: 0.9, vertexColors: true }));
   const pads = kit.batch(padMat, 'boost-pads');
   const checker = kit.batch(decal(kit.mat({ map: checkerTex, vertexColors: true })), 'start-line');
+  const water = kit.batch({ vertexColors: true, unlit: 0.35, side: THREE.DoubleSide }, 'water');
   const white = C(0xffffff);
 
   const tile = 8; // metres of road per texture repeat
@@ -295,6 +296,27 @@ export function buildTrackEnv(track: Track): TrackEnv {
     for (let j = 0; j < last; j++) {
       const a = rb.sample(j);
       const b = rb.sample(j + 1);
+      if (a.gap || b.gap) {
+        // the void of a jump: just the end faces of the road on both sides
+        if (!a.gap || !b.gap) {
+          const edge = a.gap ? b : a;
+          const P = (d: number, y: number) => edge.p.clone().addScaledVector(edge.r, d).addScaledVector(edge.u, y);
+          const W = edge.w + sh;
+          const c0 = C(0xffffff);
+          const c1 = C(0xffffff).multiplyScalar(0.5);
+          const q = [P(-W, -1.6), P(W, -1.6), P(W, 0), P(-W, 0)];
+          under.quadW(a.gap ? q : [q[1], q[0], q[3], q[2]], [0, 0, 4, 0, 4, 1, 0, 1], [c1, c1, c0, c0]);
+        }
+        if (!track.hasVoid) {
+          // a canal under the jump
+          const W = Math.max(a.w, b.w) + sh + 8;
+          const y = track.groundY - 1.2;
+          const P = (sm: typeof a, d: number) => sm.p.clone().addScaledVector(sm.r, d).setY(y);
+          const wc = C(0x3a8ac8);
+          water.quadW([P(a, -W), P(a, W), P(b, W), P(b, -W)], [0, 0, 1, 0, 1, 1, 0, 1], [wc, wc, wc, wc]);
+        }
+        continue;
+      }
       const va = a.s / tile;
       const vb = (j + 1 === N && rb.closed ? rb.length : b.s) / tile;
       const at = (sm: typeof a, d: number, lift = 0) => sm.p.clone().addScaledVector(sm.r, d).addScaledVector(sm.u, lift);
@@ -425,8 +447,9 @@ export function buildTrackEnv(track: Track): TrackEnv {
   for (const rp of track.def.features.ramps ?? []) {
     if (rp.d0 !== undefined) continue;
     const rb = track.main;
-    const a = rb.sample(rb.indexAt(rp.s + rp.len * 0.25));
-    const b = rb.sample(rb.indexAt(rp.s + rp.len));
+    const r0 = rb.sOf(rp);
+    const a = rb.sample(rb.indexAt(r0 + rp.len * 0.25));
+    const b = rb.sample(rb.indexAt(r0 + rp.len));
     const w = Math.min(a.w, b.w) - 0.8;
     const ca = C(0xffe040);
     const P = (sm: typeof a, d: number) => sm.p.clone().addScaledVector(sm.r, d).addScaledVector(sm.u, 0.04);
@@ -509,15 +532,17 @@ export function buildTrackEnv(track: Track): TrackEnv {
       const y = track.groundY - 0.02;
       groundBatch.quadW([V(x0, y, z1), V(x1, y, z1), V(x1, y, z0), V(x0, y, z0)], [x0 / 6, z1 / 6, x1 / 6, z1 / 6, x1 / 6, z0 / 6, x0 / 6, z0 / 6], [gc, gc, gc, gc]);
     }
-    const ring = kit.batch({ vertexColors: true, fog: true, depthWrite: false }, 'ground-far');
+    const ring = kit.batch({ vertexColors: true, fog: true, depthWrite: false, unlit: theme === 'beach' ? 0.4 : 0 }, 'ground-far');
     ring.renderOrder = -60;
-    const fc = C(st.ground).multiplyScalar(0.9);
+    // the beach: the sea all around the sand
+    const fc = theme === 'beach' ? C(0x2a9ad0) : C(st.ground).multiplyScalar(0.9);
     for (let i = 0; i < 32; i++) {
       const a0 = (i / 32) * Math.PI * 2;
       const a1 = ((i + 1) / 32) * Math.PI * 2;
       const y = track.groundY - 0.05;
       const P = (a: number, rr: number) => V(cx + Math.cos(a) * rr, y, cz + Math.sin(a) * rr);
-      ring.quadW([P(a0, R * 1.42), P(a1, R * 1.42), P(a1, 470), P(a0, 470)].reverse(), [0, 0, 0, 0, 0, 0, 0, 0], [fc, fc, fc, fc]);
+      const r0 = theme === 'beach' ? R * 0.98 : R * 1.42;
+      ring.quadW([P(a0, r0), P(a1, r0), P(a1, 470), P(a0, 470)].reverse(), [0, 0, 0, 0, 0, 0, 0, 0], [fc, fc, fc, fc]);
     }
   } else {
     // sea of clouds far below

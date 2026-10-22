@@ -8,6 +8,7 @@ import { Effects } from '../render/effects';
 import { loadFace } from '../render/faceTexture';
 import type { RetroPipeline } from '../render/pipeline';
 import { PS1Globals } from '../render/ps1Material';
+import { ItemViews } from '../render/itemViews';
 import { RacerView } from '../render/racerView';
 import { buildTrackEnv, type TrackEnv } from '../render/trackMesh';
 
@@ -221,6 +222,8 @@ export class RaceWorld {
   /** sample effects kept alive so their shaders stay compiled */
   private warm: Effects | null = null;
   private rescues: RescueView[] = [];
+  /** visuals of the items (null without items) */
+  items: ItemViews | null = null;
   private heroFace: Awaited<ReturnType<typeof loadFace>> | null = null;
 
   private constructor(
@@ -244,6 +247,7 @@ export class RaceWorld {
     const faces = await Promise.all(race.karts.map((k) => loadFace(k.def)));
     const views = race.karts.map((k, i) => new RacerView(k.def, faces[i]));
     const w = new RaceWorld(race, views, followed);
+    if (race.items) w.items = new ItemViews(w.scene, race, race.items, views, w.effects);
     w.heroFace = await loadFace(CAST.spiderpote);
     // two heroes ready (more are created if many karts fall at once)
     w.rescues.push(new RescueView(w.scene, w.heroFace), new RescueView(w.scene, w.heroFace));
@@ -269,12 +273,17 @@ export class RaceWorld {
     warm.cine('poof', p);
     warm.cine('stars', p);
     warm.cine('web', p);
+    warm.glyph('question', p);
+    warm.cine('powerAura', p);
     this.scene.add(warm.group);
     this.warm = warm;
+    const samples = this.items?.samples() ?? [];
+    for (const o of samples) o.position.set(0, -1000, 0);
     const cam = this.cams[0]?.camera ?? new THREE.PerspectiveCamera();
     await pipeline.prewarm(this.scene, cam);
     this.scene.remove(warm.group);
     for (const r of this.rescues) r.setVisible(false);
+    for (const o of samples) o.removeFromParent();
   }
 
   private applyLights() {
@@ -311,6 +320,7 @@ export class RaceWorld {
       void i;
     });
     for (const r of this.rescues) if (r.kart) r.update(dt, this.views[r.kart.index].kart.root.position);
+    this.items?.update(dt);
     for (const x of this.extras) x.update(dt, alpha);
     this.effects.update(dt * 60);
     if (!rects.length) return;
@@ -327,6 +337,7 @@ export class RaceWorld {
 
   dispose() {
     for (const x of this.extras) x.dispose();
+    this.items?.dispose();
     for (const v of this.views) v.dispose();
     for (const r of this.rescues) r.dispose();
     this.effects.dispose();
