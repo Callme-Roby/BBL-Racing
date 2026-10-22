@@ -15,6 +15,7 @@ npm run dev        # http://localhost:5173
 npm run build      # build de prod dans dist/
 npm run sim -- hood 120 normal   # course simulée sans écran (physique et IA)
 npm run map -- dojo              # plan d'un circuit (debug)
+npm run check                    # karts sous la route / caméra sous le sol : test sur tous les circuits
 ```
 
 ## Modes

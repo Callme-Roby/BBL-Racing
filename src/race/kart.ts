@@ -22,10 +22,20 @@ export const DT = 1 / 60;
 const GRAVITY = 30;
 /** speed under which a drift can't start / stops */
 const DRIFT_MIN_SPEED = 7.5;
+/** horizontal speed a ramp over a gap gives at least (m/s) */
+const JUMP_MIN_SPEED = 19.5;
+/** the canal under a jump reaches this far beyond the shoulders (see trackMesh) */
+export const CANAL_MARGIN = 8;
 
 /** mini-turbo thresholds (seconds of charge) and boost lengths */
 export const DRIFT_TIERS = [0, 0.95, 2.05, 3.3];
 const DRIFT_BOOST = [0, 0.55, 1.05, 1.7];
+/**
+ * Turning while drifting, as a share of the kart's full-lock turn rate: steering into the
+ * drift tightens it, steering out of it opens it (wide sweeping arcs, never tighter than
+ * normal full lock).
+ */
+export const DRIFT_YAW = { base: 0.56, range: 0.3 };
 
 export type BoostKind = 'drift' | 'start' | 'trick' | 'pad' | 'slip' | 'item' | 'bump';
 
@@ -92,6 +102,8 @@ export class Kart {
   speed = 0;
   lat = 0;
   readonly airVel = new THREE.Vector3();
+  /** real motion of the last grounded steps (follows the road's slope) */
+  private readonly groundVel = new THREE.Vector3();
   grounded = true;
   airTime = 0;
   /** last step's world velocity (cameras, slipstream, collisions) */
@@ -191,6 +203,7 @@ export class Kart {
     this.lat = 0;
     this.grounded = true;
     this.airVel.set(0, 0, 0);
+    this.groundVel.set(0, 0, 0);
     this.vel.set(0, 0, 0);
     this.hints = this.track.ribbons.map(() => -1);
     this.locateGround();
@@ -253,7 +266,7 @@ export class Kart {
   }
 
   /** ground under the kart: point, normal, surface (null = nothing below: void) */
-  private ground(): { point: THREE.Vector3; normal: THREE.Vector3; surface: Surface; wall: 0 | -1 | 1; limit: number } | null {
+  private ground(): { point: THREE.Vector3; normal: THREE.Vector3; surface: Surface; wall: 0 | -1 | 1; limit: number; bank?: -1 | 1 } | null {
     const l = this.loc;
     const tr = this.track;
     const ad = Math.abs(l.d);
@@ -261,8 +274,10 @@ export class Kart {
     const sample = l.ribbon.sample(Math.round(l.i));
     const wallSide: 0 | -1 | 1 = l.d > 0 ? (sample.wallR ? 1 : 0) : sample.wallL ? -1 : 0;
     // the void (or the canal) of a jump
-    if (sample.gap) return null;
-    if (ad <= limit || (wallSide !== 0 && ad <= limit + 3)) {
+    if (sample.gap && (tr.hasVoid || ad <= limit + CANAL_MARGIN)) return null;
+    // well under the road (fell off a bridge, under a jump): the terrain below, or nothing
+    const under = l.h < -1.5;
+    if (!sample.gap && !under && (ad <= limit || (wallSide !== 0 && ad <= limit + 3))) {
       const kick = tr.kickerAt(l.ribbon, l.s, l.d);
       const point = this.gPoint.copy(l.point).addScaledVector(l.up, kick);
       let surface: Surface = l.ribbon.surface === 'dirt' ? 'dirt' : 'road';
@@ -272,7 +287,9 @@ export class Kart {
     }
     if (tr.hasVoid) return null;
     // the terrain around the track
-    return { point: this.gPoint.set(this.pos.x, tr.groundY, this.pos.z), normal: WORLD_UP, surface: 'offroad', wall: 0, limit };
+    // under a raised road (its embankment / bridge side): a wall the kart can't get into
+    const bank: -1 | 1 | undefined = under && !sample.gap && ad <= limit ? (l.d > 0 ? 1 : -1) : undefined;
+    return { point: this.gPoint.set(this.pos.x, tr.groundY, this.pos.z), normal: WORLD_UP, surface: 'offroad', wall: 0, limit, bank };
   }
 
   /** gravity direction (unit, pointing "down") */
@@ -415,8 +432,8 @@ export class Kart {
           const d = this.drift;
           // always turning into the drift: steering opens or tightens it
           const tighten = inp.steer * d;
-          yawRate = d * p.turn * (0.78 + 0.42 * tighten) * speedK;
-          this.lat += (-d * Math.abs(sp) * (0.2 - 0.06 * tighten) - this.lat) * Math.min(1, dt * 5);
+          yawRate = d * p.turn * (DRIFT_YAW.base + DRIFT_YAW.range * tighten) * speedK;
+          this.lat += (-d * Math.abs(sp) * (0.16 - 0.05 * tighten) - this.lat) * Math.min(1, dt * 4);
           if (g && g.surface !== 'offroad') {
             const before = this.driftTier;
             this.driftCharge += dt * p.driftRate * (1 + 0.85 * Math.max(0, tighten));
@@ -470,18 +487,31 @@ export class Kart {
         if (h > 0.45 || (this.loc.ramp && h > 0.08 && this.speed > 9)) {
           // the road drops away (ramp lip, crest): fly
           this.trickable = this.loc.ramp > 0 || h > 1.2;
-          this.takeOff(new THREE.Vector3());
+          const rb = this.loc.ribbon;
+          const lip = this.loc.ramp > 0 || rb.sample(rb.indexAt(this.loc.s - 1.5)).ramp > 0 || rb.sample(Math.round(this.loc.i)).gap || this.track.kickerAt(rb, this.loc.s - 1.5, this.loc.d) > 0;
+          this.takeOff(new THREE.Vector3(), lip);
+          // a ramp over a gap always carries you across when you take it (even slowed down in the pack)
+          let gapAhead = false;
+          for (let o = 1; o <= 4; o++) if (rb.sample(Math.round(this.loc.i) + o).gap) gapAhead = true;
+          if (lip && gapAhead) {
+            const vy = this.airVel.y;
+            this.airVel.y = 0;
+            const hs = this.airVel.length();
+            if (hs > 1 && hs < JUMP_MIN_SPEED) this.airVel.multiplyScalar(JUMP_MIN_SPEED / hs);
+            this.airVel.y = Math.max(vy, 6.2);
+          }
         } else {
           this.pos.addScaledVector(g2.normal, -h);
           this.up.lerp(g2.normal, Math.min(1, dt * 12)).normalize();
           this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
           this.surface = g2.surface;
         }
-      } else if (h <= 0 && this.airTime > 0.05) {
+      } else if (h <= 0 && (this.airTime > 0.05 || this.airVel.dot(g2.normal) < 0)) {
         this.land(g2.normal, h);
       }
       // walls
       if (g2.wall !== 0) this.hitWall(g2.wall, Math.abs(this.loc.d) - g2.limit);
+      if (g2.bank) this.hitBank(g2.bank, g2.limit - Math.abs(this.loc.d));
     } else {
       this.surface = 'void';
       if (this.grounded) {
@@ -493,7 +523,8 @@ export class Kart {
     // ---- fell / far away: rescue
     const l = this.loc;
     const far = Math.abs(l.d) > l.w + this.track.shoulder + 35;
-    const below = l.h < -7 && (this.track.hasVoid || this.pos.y < this.track.groundY - 3);
+    const inCanal = !this.track.hasVoid && this.loc.ribbon.sample(Math.round(l.i)).gap && Math.abs(l.d) <= l.w + this.track.shoulder + CANAL_MARGIN;
+    const below = (l.h < -7 && (this.track.hasVoid || this.pos.y < this.track.groundY - 3)) || (inCanal && this.pos.y < this.track.groundY - 1);
     if (far || below || this.pos.y < this.track.groundY - 30) {
       this.startRescue();
     }
@@ -514,13 +545,20 @@ export class Kart {
       }
     }
 
+    if (this.grounded) this.groundVel.subVectors(this.pos, this.prevPos).divideScalar(dt);
+    else this.groundVel.copy(this.airVel);
     this.updateProgress();
     this.updateQuat();
   }
 
-  private takeOff(extra: THREE.Vector3) {
+  /** @param launch leaving a ramp: keep the climb of the slope */
+  private takeOff(extra: THREE.Vector3, launch = false) {
     const r = tmpV2.crossVectors(this.fwd, this.up).normalize();
-    this.airVel.copy(this.fwd).multiplyScalar(this.speed).addScaledVector(r, this.lat).add(extra);
+    this.airVel.copy(this.fwd).multiplyScalar(this.speed).addScaledVector(r, this.lat);
+    // the kart's nose lags the slope a little: keep the climb it really had (ramp lips launch)
+    const rise = launch ? this.groundVel.y - this.airVel.y : 0;
+    if (rise > 0) this.airVel.y += Math.min(rise, Math.abs(this.speed) * 0.8);
+    this.airVel.add(extra);
     this.grounded = false;
     this.airTime = 0;
     this.tricked = false;
@@ -582,12 +620,31 @@ export class Kart {
     if (this.drift !== 0 && into > 0.5) this.endDrift(false);
   }
 
+  /** on the terrain, against the side of a raised road (embankment, bridge): pushed back out */
+  private hitBank(side: -1 | 1, depth: number) {
+    const l = this.loc;
+    const out = tmpV.copy(l.right).setY(0);
+    const flat = Math.max(0.4, out.length());
+    out.normalize().multiplyScalar(side);
+    // (a banked road measures d in its tilted plane)
+    this.pos.addScaledVector(out, (depth + 0.1) / flat);
+    const into = -this.fwd.dot(out);
+    if (into > 0) {
+      this.speed *= 1 - Math.min(0.7, into * 1.1);
+      this.fwd.addScaledVector(out, into * 0.9).normalize();
+      this.fwd.addScaledVector(this.up, -this.fwd.dot(this.up)).normalize();
+      if (this.speed > 4) this.events.push({ k: 'bonk', strength: Math.min(1, (this.speed * into) / 20) });
+    }
+    if (!this.grounded) this.airVel.addScaledVector(out, Math.max(0, -this.airVel.dot(out)));
+    this.lat = 0;
+  }
+
   private stepRescue(dt: number) {
     const before = this.rescueT;
     this.rescueT -= dt;
     const tr = this.track;
     const sm = tr.main.sample(tr.main.indexAt(this.rescueTarget.s));
-    const target = sm.p.clone().addScaledVector(sm.r, this.rescueTarget.d).addScaledVector(sm.u, 0.05);
+    const target = sm.p.clone().addScaledVector(sm.r, this.rescueTarget.d).addScaledVector(sm.u, 0.05 + tr.kickerAt(tr.main, this.rescueTarget.s, this.rescueTarget.d));
     if (this.rescueT > 1.6) {
       // still falling (or skidding off)
       this.airVel.y -= GRAVITY * dt * 0.6;
@@ -609,6 +666,7 @@ export class Kart {
         this.speed = 0;
         this.lat = 0;
         this.grounded = true;
+        this.groundVel.set(0, 0, 0);
         this.hints = this.track.ribbons.map(() => -1);
         this.locateGround();
         this.events.push({ k: 'rescued' });

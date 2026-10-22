@@ -257,6 +257,18 @@ export class Ribbon {
         gap: ra.gap,
       });
     }
+    this.banks = raw.map((r) => (r.bank * Math.PI) / 180);
+    this.computeFrames();
+  }
+
+  /** bank angle of every sample (rad) */
+  private readonly banks: number[];
+  /** how much each sample was raised by liftAbove (m) */
+  lift: number[] = [];
+
+  /** tangent / right / up of every sample from the positions and the banking */
+  private computeFrames() {
+    const closed = this.closed;
     const N = this.samples.length;
     const up = new THREE.Vector3(0, 1, 0);
     for (let j = 0; j < N; j++) {
@@ -267,7 +279,7 @@ export class Ribbon {
       // right = forward × up, then bank around the forward axis
       sm.r.crossVectors(sm.t, up).normalize();
       sm.u.crossVectors(sm.r, sm.t).normalize();
-      const bank = (raw[j].bank * Math.PI) / 180;
+      const bank = this.banks[j];
       if (bank) {
         sm.r.applyAxisAngle(sm.t, bank);
         sm.u.applyAxisAngle(sm.t, bank);
@@ -283,6 +295,68 @@ export class Ribbon {
       sm.u.copy(ups[j]).multiplyScalar(2).add(a).add(b).normalize();
       sm.r.crossVectors(sm.t, sm.u).normalize();
     }
+  }
+
+  /**
+   * Raise the road where its lower edge (banked turns) would sink under the terrain at `floor`:
+   * the turn becomes a banked berm, its low edge level with the ground. The lift fades in and
+   * out over ~25 m so the road stays smooth. `ends` (branches): the lift of the main line where
+   * the branch leaves and joins it, so both still meet.
+   */
+  liftAbove(floor: number, margin: number, ends?: [number, number]) {
+    const N = this.samples.length;
+    const R = 25;
+    const need = this.samples.map((sm) => (sm.gap ? 0 : Math.max(0, floor + 0.03 - (sm.p.y - Math.abs(sm.r.y) * (sm.w + margin)))));
+    const idx = (j: number) => (this.closed ? ((j % N) + N) % N : j);
+    const spread = () => {
+      const lift = new Array<number>(N).fill(0);
+      for (let k = 0; k < N; k++) {
+        if (need[k] <= 0) continue;
+        for (let o = -R; o <= R; o++) {
+          const j = idx(k + o);
+          if (j < 0 || j >= N) continue;
+          const f = 0.5 + 0.5 * Math.cos((Math.PI * Math.abs(o)) / R);
+          lift[j] = Math.max(lift[j], need[k] * (Math.abs(o) <= 2 ? 1 : f));
+        }
+      }
+      return lift;
+    };
+    let lift = spread();
+    // a jump (ramp, gap, landing) is lifted in one piece: same take-off and landing heights
+    const zones: number[][] = [];
+    for (let j = 0; j < N; j++) {
+      if (!this.samples[j].ramp || this.samples[idx(j - 1)]?.ramp) continue;
+      const zone: number[] = [];
+      let k = j;
+      while (zone.length < N && (this.samples[idx(k)].ramp || this.samples[idx(k)].gap)) zone.push(idx(k++));
+      for (let e = 0; e < 14; e++) zone.push(idx(k + e));
+      zones.push(zone.filter((z) => z >= 0 && z < N));
+    }
+    if (zones.length) {
+      for (const z of zones) {
+        const m = Math.max(...z.map((j) => lift[j]));
+        for (const j of z) need[j] = m;
+      }
+      lift = spread();
+    }
+    if (ends) {
+      // meet the main line again at both ends
+      const fix = (j0: number, dir: 1 | -1, want: number) => {
+        const c = want - lift[j0];
+        if (Math.abs(c) < 1e-3) return;
+        for (let o = 0; o <= R; o++) {
+          const j = j0 + dir * o;
+          if (j < 0 || j >= N) break;
+          lift[j] += c * (0.5 + 0.5 * Math.cos((Math.PI * o) / R));
+        }
+      };
+      fix(0, 1, ends[0]);
+      fix(N - 1, -1, ends[1]);
+    }
+    this.lift = lift;
+    if (!lift.some((v) => Math.abs(v) > 1e-4)) return;
+    this.samples.forEach((sm, j) => (sm.p.y += lift[j]));
+    this.computeFrames();
   }
 
   get count() {
@@ -453,6 +527,12 @@ export class Track {
     this.shoulder = f.shoulder ?? 3;
     this.hasVoid = !!f.void;
     this.groundY = f.groundY ?? 0;
+    if (!this.hasVoid) {
+      // no road under the terrain (the low side of banked turns)
+      this.main.liftAbove(this.groundY, this.shoulder);
+      const liftAt = (s: number) => this.main.lift[this.main.indexAt(s) % this.main.count] ?? 0;
+      for (const b of this.branches) b.liftAbove(this.groundY, this.shoulder, [liftAt(b.s0), liftAt(b.s1)]);
+    }
     for (const row of f.items ?? []) {
       const n = row.n ?? 4;
       const rs = this.main.sOf(row);

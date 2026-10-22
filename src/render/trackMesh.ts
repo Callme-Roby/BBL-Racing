@@ -1,3 +1,4 @@
+import { CANAL_MARGIN } from '../race/kart';
 import * as THREE from 'three';
 import type { Ribbon, Theme, Track } from '../race/track';
 import { blob, C, clamp, crack, decal, hillRing, Kit, noiseRect, px, radialSprite, skyDome, T, type Batch } from './stages/kit';
@@ -309,7 +310,7 @@ export function buildTrackEnv(track: Track): TrackEnv {
         }
         if (!track.hasVoid) {
           // a canal under the jump
-          const W = Math.max(a.w, b.w) + sh + 8;
+          const W = Math.max(a.w, b.w) + sh + CANAL_MARGIN;
           const y = track.groundY - 1.2;
           const P = (sm: typeof a, d: number) => sm.p.clone().addScaledVector(sm.r, d).setY(y);
           const wc = C(0x3a8ac8);

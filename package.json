@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "sim": "esbuild dev/simTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/simtest.cjs && node node_modules/.cache/simtest.cjs",
+    "check": "esbuild dev/groundTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/groundtest.cjs && node node_modules/.cache/groundtest.cjs all 120 && esbuild dev/camTest.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/camtest.cjs && node node_modules/.cache/camtest.cjs all 90",
     "map": "esbuild dev/trackMap.ts --bundle --platform=node --log-level=warning --outfile=node_modules/.cache/trackmap.cjs && node node_modules/.cache/trackmap.cjs"
   },
   "dependencies": {

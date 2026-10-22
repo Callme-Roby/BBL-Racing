@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAST } from '../data/cast';
 import type { Kart } from '../race/kart';
+import { newLocate } from '../race/track';
 import { CharacterView } from '../render/characterView';
 import { createPS1Material } from '../render/ps1Material';
 import type { Race } from '../race/race';
@@ -46,6 +47,8 @@ export function splitLayout(n: number, aspect: number): ViewRect[] {
  * banking (anti-gravity walls), wider field of view while boosting, rear view on demand,
  * scripted moves for the intro / finish.
  */
+const tmpHead = new THREE.Vector3();
+
 export class ChaseCam {
   readonly camera = new THREE.PerspectiveCamera(68, 16 / 9, 0.1, 900);
   private fwd = new THREE.Vector3(0, 0, 1);
@@ -63,6 +66,59 @@ export class ChaseCam {
   private tvT = 0;
 
   constructor(public kart: Kart) {}
+
+  private loc = newLocate();
+  private hints: number[] = [];
+
+  /**
+   * The camera never goes under a road, behind a wall or under the terrain: the polygons are
+   * one-sided, the circuit would vanish from the screen (anti-gravity entries, after jumps,
+   * tight turns along a wall).
+   */
+  private keepOutOfTrack(p: THREE.Vector3) {
+    const tr = this.kart.track;
+    const loc = this.loc;
+    tr.ribbons.forEach((rb, r) => {
+      const hint = rb === this.kart.loc.ribbon ? Math.round(this.kart.loc.i) : (this.hints[r] ?? -1);
+      const j = rb.nearest(p, hint, 60);
+      if (j < 0) return;
+      this.hints[r] = j;
+      rb.locate(p, j, loc);
+      const sm = rb.sample(j);
+      if (sm.gap) return;
+      const lim = loc.w + tr.shoulder;
+      const ad = Math.abs(loc.d);
+      // behind a wall: back inside
+      const wall = loc.d > 0 ? sm.wallR : sm.wallL;
+      if (wall && rb === this.kart.loc.ribbon && ad > lim - 0.4 && ad < lim + 8 && loc.h > -1.5 && loc.h < 3) {
+        p.addScaledVector(loc.right, -Math.sign(loc.d) * (ad - (lim - 0.4)));
+        rb.locate(p, j, loc);
+      }
+      // under the road (or just on it): above it again
+      if (Math.abs(loc.d) < lim + 1 && loc.h < 0.6 && loc.h > -5) p.addScaledVector(loc.up, 0.6 - loc.h);
+    });
+    if (!tr.hasVoid && p.y < tr.groundY + 0.5) p.y = tr.groundY + 0.5;
+    // just under ANOTHER part of the circuit (spiral decks, a bridge over the road): closer to the kart
+    const head = tmpHead.copy(this.kart.pos).addScaledVector(this.kart.up, 1.2);
+    for (let it = 0; it < 4 && this.underOtherDeck(p); it++) p.lerp(head, 0.45);
+  }
+
+  private underOtherDeck(p: THREE.Vector3): boolean {
+    const tr = this.kart.track;
+    const loc = this.loc;
+    for (const rb of tr.ribbons) {
+      const j = rb.nearest(p, -1, 30);
+      if (j < 0) continue;
+      rb.locate(p, j, loc);
+      if (rb.sample(j).gap || Math.abs(loc.d) > loc.w + tr.shoulder + 0.5 || loc.h > 0.5 || loc.h < -4) continue;
+      // the kart's own stretch of road was handled above
+      const ks = this.kart.loc;
+      let ds = Math.abs(loc.s - ks.s);
+      if (rb.closed) ds = Math.min(ds, rb.length - ds);
+      if (rb !== ks.ribbon || ds > 35) return true;
+    }
+    return false;
+  }
 
   shake(a: number) {
     this.shakeA = Math.max(this.shakeA, a);
@@ -127,6 +183,7 @@ export class ChaseCam {
       this.pos.lerp(wantPos, Math.min(1, dt * (this.mode === 'finish' ? 3 : 14)));
       this.look.lerp(wantLook, Math.min(1, dt * 16));
     }
+    this.keepOutOfTrack(this.pos);
     cam.position.copy(this.pos);
     if (this.shakeT > 0) {
       this.shakeT -= dt;

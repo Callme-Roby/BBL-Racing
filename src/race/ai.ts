@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Difficulty } from '../game/settings';
 import { NO_INPUT, type KartInput } from '../input/input';
-import type { Kart } from './kart';
+import { DRIFT_YAW, type Kart } from './kart';
 import type { Ribbon, Track } from './track';
 
 /**
@@ -147,7 +147,7 @@ export class KartAI {
     if (this.level.maxTier > 0) {
       const onRoad = Math.abs(k.loc.d) < k.loc.w - 1.2;
       if (k.drift === 0) {
-        if (!this.driftHold && onRoad && speed > 12 && Math.abs(needAhead) > 0.27 * turn && Math.sign(needAhead) === Math.sign(steer || needAhead) && Math.abs(ang) < 0.45) {
+        if (!this.driftHold && onRoad && speed > 12 && Math.abs(needAhead) > 0.27 * turn && Math.abs(needAhead) < (DRIFT_YAW.base + DRIFT_YAW.range) * turn && Math.sign(needAhead) === Math.sign(steer || needAhead) && Math.abs(ang) < 0.45) {
           this.driftHold = true;
           this.driftDir = Math.sign(needAhead);
         }
@@ -160,9 +160,9 @@ export class KartAI {
       } else {
         this.driftWait = 0;
         const d = k.drift;
-        // what normal steering would ask, mapped into the drift's range (0.36 .. 1.2 of the turn rate)
+        // what normal steering would ask, mapped into the drift's range (see DRIFT_YAW)
         const want = (ang * this.level.steerGain + needNow / turn) * 0.5 * d;
-        const tighten = Math.max(-1, Math.min(1, (want - 0.78) / 0.42));
+        const tighten = Math.max(-1, Math.min(1, (want - DRIFT_YAW.base) / DRIFT_YAW.range));
         inp.steer = d * tighten;
         const corner = Math.abs(needNow) > 0.16 * turn && Math.sign(needNow) === d;
         const done = k.driftTier >= this.targetTier && Math.abs(needAhead) < 0.2 * turn;
