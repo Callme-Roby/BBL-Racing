@@ -621,3 +621,136 @@
 .race-screen.covered .map-panel {
   display: none;
 }
+
+/* ------------------------------------------------------------------ */
+/* online: create / join, the room                                     */
+/* ------------------------------------------------------------------ */
+.tn-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.online-room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) 16px 16px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+.room-body {
+  display: flex;
+  gap: 16px;
+  width: min(760px, 100%);
+  align-items: flex-start;
+}
+
+.room-players {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  padding: 10px;
+}
+
+.room-head {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--orange2);
+  margin-bottom: 4px;
+}
+
+.room-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid transparent;
+}
+
+.room-player.me {
+  border-color: var(--orange);
+}
+
+.room-player.off {
+  opacity: 0.45;
+}
+
+.room-player .ph {
+  flex: none;
+  width: 34px;
+  height: 42px;
+  border: 2px solid #000;
+  background: #111 center / cover no-repeat;
+  image-rendering: pixelated;
+}
+
+.room-player .who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--pixel);
+}
+
+.room-player .who b {
+  font-size: 11px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-player .who small {
+  font-size: 7px;
+  color: var(--muted);
+}
+
+.room-player .pts {
+  font-family: var(--arcade);
+  font-size: 18px;
+  color: var(--orange);
+}
+
+.room-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-track .track-card {
+  cursor: default;
+}
+
+.room-pick,
+.room-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .room-body {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .room-track .track-card {
+    width: 60vw;
+  }
+  .share {
+    flex-wrap: wrap;
+  }
+}

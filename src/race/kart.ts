@@ -214,7 +214,7 @@ export class Kart {
   }
 
   /** Find the ribbon under the kart (main line or a shortcut) and the road frame there. */
-  private locateGround() {
+  locateGround() {
     const tr = this.track;
     let best: Locate | null = null;
     let bestScore = 1e9;
@@ -647,6 +647,59 @@ export class Kart {
       this.addBoost('start', 0.6, 0.9);
       this.speed = this.params.top * 0.3;
     }
+  }
+
+  // ---------------------------------------------------------------- online
+
+  /** compact state sent to the other browsers (see applyNet) */
+  netState(): number[] {
+    const r = (v: number) => Math.round(v * 1000) / 1000;
+    const BK: (BoostKind | null)[] = [null, 'drift', 'start', 'trick', 'pad', 'slip', 'item', 'bump'];
+    return [
+      r(this.pos.x), r(this.pos.y), r(this.pos.z),
+      r(this.quat.x), r(this.quat.y), r(this.quat.z), r(this.quat.w),
+      r(this.speed), r(this.steer), this.drift, this.driftTier,
+      r(this.boostT), r(this.boostPower), BK.indexOf(this.boostKind),
+      r(this.starT), r(this.spinT), r(this.squashT), r(this.trickT), this.trickVariant, r(this.rescueT),
+      this.grounded ? 1 : 0, r(this.progress), this.lap, this.finished ? 1 : 0, r(this.finishTime),
+      this.input.look ? 1 : 0, r(this.lat), r(this.spinAngle),
+    ];
+  }
+
+  /** Puts a remote kart where the network says it is (pos/quat already interpolated by the caller). */
+  applyNet(s: number[], pos: THREE.Vector3, quat: THREE.Quaternion) {
+    const BK: (BoostKind | null)[] = [null, 'drift', 'start', 'trick', 'pad', 'slip', 'item', 'bump'];
+    this.prevPos.copy(this.pos);
+    this.prevQuat.copy(this.quat);
+    this.vel.subVectors(pos, this.pos).multiplyScalar(60);
+    if (this.vel.lengthSq() > 60 * 60) this.vel.set(0, 0, 0);
+    this.pos.copy(pos);
+    this.quat.copy(quat);
+    this.fwd.set(0, 0, 1).applyQuaternion(quat);
+    this.up.set(0, 1, 0).applyQuaternion(quat);
+    this.speed = s[7];
+    this.steer = s[8];
+    this.drift = s[9] as -1 | 0 | 1;
+    this.driftTier = s[10];
+    this.boostT = s[11];
+    this.boostPower = s[12];
+    this.boostKind = BK[s[13]] ?? null;
+    this.starT = s[14];
+    this.spinT = s[15];
+    this.squashT = s[16];
+    this.trickT = s[17];
+    this.trickVariant = s[18];
+    this.rescueT = s[19];
+    this.grounded = s[20] === 1;
+    this.progress = s[21];
+    this.lap = s[22];
+    this.input = { ...this.input, steer: s[8], look: s[25] === 1 };
+    this.lat = s[26];
+    this.spinAngle = s[27];
+    this.locateGround();
+    const l = this.loc;
+    const ad = Math.abs(l.d);
+    this.surface = ad > l.w + this.track.shoulder ? 'offroad' : ad > l.w ? 'offroad' : l.ribbon.surface === 'dirt' ? 'dirt' : 'road';
   }
 
   /** Which ribbon / where (for the AI and the HUD). */

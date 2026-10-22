@@ -1,7 +1,6 @@
 // PeerJS (+ its WebRTC shims) is only downloaded when a game goes online
 import type { DataConnection, Peer, PeerOptions } from 'peerjs';
 import type { FighterDef } from '../data/roster';
-type Tournament = unknown;
 
 /**
  * Peer-to-peer link between two browsers (WebRTC data channel via PeerJS).
@@ -14,88 +13,66 @@ type Tournament = unknown;
  * unacknowledged inputs in every packet anyway).
  */
 
-/** bump when the messages or the simulation change (both browsers must run the same game) */
-export const NET_VERSION = 'bbl-6';
+/** bump when the messages or the simulation change (every browser must run the same game) */
+export const NET_VERSION = 'bblkart-1';
 const ID_PREFIX = 'bblkart-';
-/** online tournaments: the organiser's peer id is ID_PREFIX + TN_TAG + code */
-const TN_TAG = 't';
+/** rooms: the host's peer id is ID_PREFIX + TN_TAG + code (a hub: everybody connects to the host) */
+const TN_TAG = 'r';
 
-/** A participant as seen in the online tournament lobby. */
-export interface TnEntry {
+/** A player of the online room as everybody sees it. */
+export interface RoomPlayer {
   name: string;
-  cpu: boolean;
-  /** chosen fighter (a built-in roster id, or a full custom definition) */
-  fighterId: string;
-  def?: FighterDef;
-  /** chosen assist (a built-in roster id; '' = « HASARD »: drawn from the tournament seed at the start) */
-  assistId: string;
-  /** connected right now (CPU entries are always "online") */
+  def: FighterDef;
   online: boolean;
+  /** points of the evening (sum of the races played together) */
+  points: number;
 }
 
-/** Everything needed to play / watch one tournament match (identical on every browser). */
-export interface TnMatch {
-  /** unique per attempt: "round.match.replays" */
-  key: string;
-  r: number;
-  m: number;
-  /** participant indices (left / right) */
-  a: number;
-  b: number;
-  p1: FighterDef;
-  p2: FighterDef;
-  /** each side's assist (every browser creates the game with these) */
-  assists: [FighterDef | null, FighterDef | null];
-  stageId: string;
-  rounds: number;
-  difficulty: 'easy' | 'normal' | 'hard';
+/** What every browser needs to create the same race. */
+export interface NetRaceSetup {
+  trackId: string;
+  laps: number;
+  cc: number;
+  items: boolean;
   seed: number;
-  title: string;
-  names: [string, string];
-  cpu: [boolean, boolean];
-  /** participant index of the browser that runs the fight and streams it (-1 = the organiser, CPU vs CPU) */
-  runner: number;
+  difficulty: 'easy' | 'normal' | 'hard';
+  /** grid: humans (room player index) and CPUs */
+  racers: { def: FighterDef; player: number; name?: string }[];
 }
 
 export type NetMsg =
-  | { t: 'hello'; version: string; name: string }
-  /** fighter select: my fighter (cursor or locked), then my assist (cursor or locked) */
-  | { t: 'pick'; def: FighterDef | null; locked: boolean; cursor: number; assist: FighterDef | null; assistLocked: boolean; assistCursor: number }
-  | { t: 'stage'; id: string; locked: boolean }
-  /** host → guest: the fight starts (a1 / a2 = assists of P1 / P2, the same on both browsers) */
-  | { t: 'start'; stage: string; p1: FighterDef; p2: FighterDef; a1: FighterDef | null; a2: FighterDef | null; seed: number; rounds: number }
-  /** inputs of frames f.. (b), frame advantage, a = last of your frames I have (contiguous), d = my input delay */
-  | { t: 'in'; f: number; b: number[]; adv: number; a: number; d: number }
-  | { t: 'sum'; f: number; h: number }
+  // ---- room
+  /** guest → host: who I am (`token` gets a refreshed page its seat back) */
+  | { t: 'hello'; version: string; name: string; def: FighterDef; token: string }
+  /** host → guest: refused (wrong version, room full…) */
+  | { t: 'refused'; reason: string }
+  /** host → all: the room. `you` = room index of the receiver */
+  | { t: 'room'; players: RoomPlayer[]; you: number; trackId: string; racing: boolean }
+  /** guest → host: changed driver */
+  | { t: 'me'; def: FighterDef }
+  /** host → all: a race starts; `you` = kart index of the receiver */
+  | { t: 'start'; setup: NetRaceSetup; you: number }
+  /** host → all: everybody is loaded, start the countdown (in `in` ms) */
+  | { t: 'go'; in: number }
+  /** guest → host: loaded the race */
   | { t: 'ready' }
-  | { t: 'rematch' }
-  | { t: 'toSelect' }
+  // ---- race (fast channel)
+  /** guest → host: state of my kart (see Kart.netState) */
+  | { t: 'k'; s: number[] }
+  /** host → all: every kart + the items (positions of the objects, boxes, held items) */
+  | { t: 'w'; tick: number; k: number[][]; o: number[]; b: number[]; h: number[] }
+  // ---- race (reliable)
+  /** guest → host: I use my item */
+  | { t: 'use'; aim: number }
+  /** host → guest: something happens to your kart (item hit, turbo you used…) */
+  | { t: 'fx'; ev: { k: string; [key: string]: unknown } }
+  /** host → all: final order (kart indices) and finish times */
+  | { t: 'done'; order: number[]; times: number[] }
+  /** host → all: back to the room */
+  | { t: 'toRoom' }
   | { t: 'leave' }
   | { t: 'ping'; ts: number }
-  | { t: 'pong'; ts: number }
-  // ---- online tournament (organiser = hub, everybody else connects to it)
-  /** guest → organiser: who I am (`token` lets a refreshed page get its slot back) */
-  | { t: 'tnHello'; version: string; name: string; token: string }
-  /** organiser → guest: refused (wrong version, full…) */
-  | { t: 'tnError'; reason: string }
-  /** organiser → guest: lobby / tournament state. `you` = participant index of the receiver (-1 = spectator) */
-  | { t: 'tnLobby'; entries: TnEntry[]; you: number; started: boolean }
-  /** guest → organiser: name / fighter / assist choice (assistId '' = « HASARD ») */
-  | { t: 'tnMe'; name: string; fighterId: string; def?: FighterDef; assistId?: string }
-  /** organiser → all: the bracket (after the start) */
-  | { t: 'tnState'; tour: Tournament; live: TnMatch | null; flash: string }
-  /** organiser → all: a match starts (its two players fight, the others watch) */
-  | { t: 'tnMatch'; match: TnMatch }
-  /** left player → organiser → right player: code of the room of their online fight */
-  | { t: 'tnRoom'; key: string; code: string }
-  /** runner → organiser → spectators: final inputs from frame f (pairs p1, p2 flattened) */
-  | { t: 'tnTv'; key: string; f: number; b: number[] }
-  /** runner → organiser: match result (2 = draw) */
-  | { t: 'tnResult'; key: string; w: 0 | 1 | 2 }
-  /** player → organiser: the match could not be played (disconnection...) */
-  | { t: 'tnAbort'; key: string; reason: string }
-  /** organiser → all: the tournament is over / cancelled */
-  | { t: 'tnEnd'; reason: string };
+  | { t: 'pong'; ts: number };
 
 export type NetListener = (m: NetMsg) => void;
 

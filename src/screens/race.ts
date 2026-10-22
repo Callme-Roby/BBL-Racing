@@ -30,6 +30,14 @@ export interface RaceScreenOpts {
   onRetry?: () => void;
   /** extra systems (items, network) plugged in when the race is created */
   plug?: (race: Race, world: RaceWorld, screen: RaceScreen) => void;
+  /** online: the circuit is loaded (tell the host) */
+  onLoaded?: () => void;
+  /** online: after every race tick (send / receive states) */
+  onTick?: () => void;
+  /** leaving the race (online: back to the room instead of the menu) */
+  onQuit?: () => void;
+  /** online races start their countdown when the host says so */
+  holdIntro?: boolean;
 }
 
 const INTRO_TICKS = 5 * 60;
@@ -72,6 +80,7 @@ export class RaceScreen implements Screen {
   ) {
     this.race = new Race(opts.setup);
     this.race.introTicks = INTRO_TICKS;
+    this.holdIntro = !!opts.holdIntro;
   }
 
   enter() {
@@ -111,6 +120,7 @@ export class RaceScreen implements Screen {
     );
     this.root.append(this.titleEl);
     this.root.addEventListener('click', () => this.skipIntro());
+    this.opts.onLoaded?.();
   }
 
   private async setupGhost() {
@@ -224,7 +234,8 @@ export class RaceScreen implements Screen {
 
   private quit() {
     audio.sfx('cancel');
-    goMenu();
+    if (this.opts.onQuit) this.opts.onQuit();
+    else goMenu();
   }
 
   exit() {
@@ -295,6 +306,7 @@ export class RaceScreen implements Screen {
         this.acc -= DT;
         race.tick(this.inputs());
         input.endTick();
+        this.opts.onTick?.();
         this.onTick();
       }
       if (this.acc > DT * 5) this.acc = 0;
@@ -623,7 +635,7 @@ export class RaceScreen implements Screen {
     const items = [
       ...(this.opts.onDone ? [{ label: 'CONTINUER', action: () => this.opts.onDone!(race) }] : []),
       ...(this.opts.mode !== 'gp' && this.opts.mode !== 'online' ? [{ label: 'REJOUER', action: () => this.retry() }] : []),
-      ...(this.opts.mode !== 'gp' ? [{ label: 'MENU', action: () => this.quit() }] : []),
+      ...(this.opts.mode !== 'gp' && this.opts.mode !== 'online' ? [{ label: 'MENU', action: () => this.quit() }] : []),
     ];
     this.resultsMenu = new Menu(items, () => audio.sfx('cursor'));
     let table: HTMLElement = h('table', { class: 'results-table' }, ...rows);

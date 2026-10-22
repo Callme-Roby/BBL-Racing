@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { DT, type Kart } from './kart';
 import { curvatureOf } from './ai';
-import { drawItem, ITEM_INFO, type ItemId } from './itemDefs';
+import { ALL_ITEMS, drawItem, ITEM_INFO, type ItemId } from './itemDefs';
 import type { Race, RaceSystem } from './race';
 
 /**
@@ -89,6 +89,50 @@ export class ItemSystem implements RaceSystem {
   private rnd(): number {
     this.seed = (Math.imul(this.seed, 1664525) + 1013904223) >>> 0;
     return this.seed / 4294967296;
+  }
+
+  // ---------------------------------------------------------------- online
+
+  /** host: a guest pressed its item button */
+  remoteUse(i: number, aim: number) {
+    const h = this.holds[i];
+    const k = this.race.karts[i];
+    if (h.item && h.roll <= 0 && !k.finished && k.rescueT <= 0) this.use(k, h, aim);
+  }
+
+  /** host → guests: objects, boxes and held items, packed */
+  exportState(): { o: number[]; b: number[]; h: number[] } {
+    const KINDS: ObjKind[] = ['sauce', 'web', 'ball', 'words', 'grenade', 'mic'];
+    const r = (v: number) => Math.round(v * 100) / 100;
+    const o: number[] = [];
+    for (const x of this.objs) o.push(x.id, KINDS.indexOf(x.kind), r(x.s), r(x.d), r(x.h), x.trap ? 1 : 0, r(x.boom), r(x.age), r(x.vs));
+    const h: number[] = [];
+    this.holds.forEach((x, i) => h.push(x.item ? ALL_ITEMS.indexOf(x.item) : -1, x.count, r(x.roll), r(this.rocket[i]), r(this.confused[i])));
+    return { o, b: this.boxes.map((b) => r(b.respawn)), h };
+  }
+
+  /** guests: the state from the host (`me` = my kart: its rocket ride runs here) */
+  importState(st: { o: number[]; b: number[]; h: number[] }, me: number) {
+    const KINDS: ObjKind[] = ['sauce', 'web', 'ball', 'words', 'grenade', 'mic'];
+    const objs: ItemObj[] = [];
+    for (let i = 0; i + 8 < st.o.length; i += 9) {
+      const [id, kind, s, d, h, trap, boom, age, vs] = st.o.slice(i, i + 9);
+      objs.push({ id, kind: KINDS[kind] ?? 'ball', owner: -1, s, d, h, vs, vd: 0, vh: 0, age, life: 99, target: -1, trap: trap === 1, boom, dead: false, bounces: 0 });
+    }
+    this.objs.length = 0;
+    this.objs.push(...objs);
+    st.b.forEach((r, i) => {
+      if (this.boxes[i]) this.boxes[i].respawn = r;
+    });
+    for (let i = 0; i * 5 + 4 < st.h.length && i < this.holds.length; i++) {
+      const [item, count, roll, rocket, conf] = st.h.slice(i * 5, i * 5 + 5);
+      const hd = this.holds[i];
+      hd.item = item >= 0 ? ALL_ITEMS[item] : null;
+      hd.count = count;
+      hd.roll = roll;
+      if (i !== me || this.rocket[i] <= 0) this.rocket[i] = rocket;
+      this.confused[i] = conf;
+    }
   }
 
   /** world position of an object */

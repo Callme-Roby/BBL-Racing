@@ -123,7 +123,10 @@ export class Race {
     for (let i = 0; i < this.karts.length; i++) {
       const k = this.karts[i];
       const r = this.setup.racers[i];
-      if (r.remote) continue;
+      if (r.remote) {
+        this.remote?.(i);
+        continue;
+      }
       let inp: KartInput = inputs[i] ?? NO_INPUT;
       const ai = this.ais[i];
       if (ai) inp = this.phase === 'countdown' ? { ...NO_INPUT, accel: this.phaseTicks > Race.COUNT - 50 + (i % 4) * 4 } : ai.think(this.track, this.time);
@@ -150,6 +153,21 @@ export class Race {
       this.phase = 'done';
       this.phaseTicks = 0;
     }
+  }
+
+  /** online: moves the remote karts each tick (NetRace) */
+  remote: ((i: number) => void) | null = null;
+  /** online guests: the order decided by the host */
+  forcedOrder: number[] | null = null;
+
+  /** online: a remote kart crossed the line on its own browser */
+  remoteFinish(i: number, time: number) {
+    const k = this.karts[i];
+    if (k.finished) return;
+    k.finished = true;
+    k.finishTime = time;
+    this.finishOrder.push(i);
+    this.events.push({ kart: i, ev: { k: 'finish' } });
   }
 
   /** tests: everybody crosses the line now, in the current order */
@@ -194,6 +212,7 @@ export class Race {
 
   /** finishing position of the CPUs still racing when the humans are done: by progress */
   finalOrder(): number[] {
+    if (this.forcedOrder) return this.forcedOrder;
     const rest = this.order.filter((i) => !this.karts[i].finished);
     return [...this.finishOrder, ...rest];
   }
