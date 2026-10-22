@@ -160,14 +160,14 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
   b.box(I, 0, 0.16, -1.14, 1.2, 0.08, 0.08, { color: trim });
   for (const sx of [-1, 1]) b.box(I, sx * 0.5, 0.1, -1.06, 0.06, 0.08, 0.16, { color: metal });
   // steering column
-  b.beam(I, [0, 0.3, 0.6], [0, 0.6, 0.3], 0.05, { color: dark });
+  b.beam(I, [0, 0.3, 0.62], [0, 0.52, 0.36], 0.05, { color: dark });
   const chassis = new THREE.Mesh(b.toGeometry(), vc);
   body.add(chassis);
 
   // steering wheel (rotates with the steering)
   const swPivot = new THREE.Group();
-  swPivot.position.set(0, 0.63, 0.27);
-  swPivot.rotation.x = -0.95;
+  swPivot.position.set(0, 0.54, 0.34);
+  swPivot.rotation.x = -1.1;
   const swMat = mat({ color: 0x1c1c20 });
   const sw = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.03, 4, 8), swMat);
   const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.03), swMat);

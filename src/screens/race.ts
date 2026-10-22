@@ -3,6 +3,7 @@ import { audio, type EngineVoice } from '../audio/audio';
 import type { App, Screen } from '../app';
 import { input, type KartInput } from '../input/input';
 import { loadFace } from '../render/faceTexture';
+import { KartAI } from '../race/ai';
 import { DT } from '../race/kart';
 import { Race, type RaceSetup } from '../race/race';
 import { RaceWorld, splitLayout, type ViewRect } from '../game/raceWorld';
@@ -160,6 +161,7 @@ export class RaceScreen implements Screen {
 
   exit() {
     this.disposed = true;
+    this.app.pipeline.post.uLines.value = 0;
     for (const e of this.engines) e?.stop();
     this.world?.dispose();
     this.app.touch.onPause = null;
@@ -170,8 +172,15 @@ export class RaceScreen implements Screen {
   private inputs(): (KartInput | null)[] {
     const out: (KartInput | null)[] = this.race.karts.map(() => null);
     const covered = this.paused && this.opts.mode !== 'online';
+    const auto = (window as unknown as { bblAutopilot?: boolean }).bblAutopilot;
     this.opts.locals.forEach((ki, p) => {
       out[ki] = covered ? null : input.kart(p);
+      // ?debug: bblAutopilot = true lets the CPU drive the local karts (tests)
+      if (auto && this.race.phase === 'race') {
+        let ai = this.autoAIs.get(ki);
+        if (!ai) this.autoAIs.set(ki, (ai = new KartAI(this.race.karts[ki], 'hard', ki)));
+        out[ki] = ai.think(this.race.track, this.race.time);
+      }
     });
     return out;
   }
@@ -203,7 +212,8 @@ export class RaceScreen implements Screen {
     }
     const world = this.world;
     if (!world || !this.huds.length) return;
-    (window as unknown as { bblRaceNow?: Race }).bblRaceNow = this.race;
+    (window as unknown as { bblRaceNow?: Race; bblWorld?: RaceWorld }).bblRaceNow = this.race;
+    (window as unknown as { bblWorld?: RaceWorld }).bblWorld = world;
     const race = this.race;
     if (this.holdIntro && race.phase === 'intro') race.introTicks = race.phaseTicks + 2;
     const frozen = this.paused && this.opts.mode !== 'online';
@@ -228,6 +238,15 @@ export class RaceScreen implements Screen {
       world.render(this.app.pipeline, alpha, dt, this.rects, this.app.aspect);
     }
     for (const hd of this.huds) hd.update(dt, this.opts.locals);
+    // manga speed lines while boosting (one player: they cover the whole picture)
+    const post = this.app.pipeline.post;
+    if (this.opts.locals.length === 1 && race.phase !== 'intro') {
+      const k = race.karts[this.opts.locals[0]];
+      const want = k.boostT > 0 || k.starT > 0 ? Math.min(0.75, 0.35 + k.boostPower * 0.25) : k.slipT > 0.4 ? 0.2 : 0;
+      post.uLines.value += (want - post.uLines.value) * Math.min(1, dt * 8);
+      post.uLinesCenter.value.set(0.5, 0.55);
+      post.uLinesSeed.value = Math.floor(race.ticks / 3);
+    } else post.uLines.value = 0;
     this.updateEngines();
     if (race.phase === 'done' && !this.resultsShown) {
       this.doneT += dt;
@@ -395,6 +414,7 @@ export class RaceScreen implements Screen {
   }
 
   private resultsMenu: Menu | null = null;
+  private autoAIs = new Map<number, KartAI>();
 
   private showResults() {
     this.resultsShown = true;

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
+import { CAST } from '../data/cast';
 import type { Kart } from '../race/kart';
+import { CharacterView } from '../render/characterView';
+import { createPS1Material } from '../render/ps1Material';
 import type { Race } from '../race/race';
 import { Effects } from '../render/effects';
 import { loadFace } from '../render/faceTexture';
@@ -140,6 +143,69 @@ export class ChaseCam {
   }
 }
 
+/**
+ * The rescue: when a kart falls off or leaves the circuit, Spider-Pote (Enola's masked friend)
+ * swings in, catches it with a web and puts it back on the track.
+ */
+class RescueView {
+  readonly hero: CharacterView;
+  private line: THREE.Mesh;
+  private t = 0;
+  kart: Kart | null = null;
+
+  constructor(scene: THREE.Scene, face: Awaited<ReturnType<typeof loadFace>>) {
+    this.hero = new CharacterView(CAST.spiderpote, face);
+    this.hero.addTo(scene);
+    this.hero.shadow.visible = false;
+    const mat = createPS1Material({ color: 0xf2f2f2, unlit: 0.6 });
+    this.line = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 4, 1, true).translate(0, 0.5, 0), mat);
+    scene.add(this.line);
+    this.setVisible(false);
+  }
+
+  setVisible(v: boolean) {
+    this.hero.root.visible = v;
+    this.line.visible = v;
+  }
+
+  update(dt: number, kartPos: THREE.Vector3) {
+    const k = this.kart;
+    if (!k || k.rescueT <= 0) {
+      this.setVisible(false);
+      this.kart = null;
+      return;
+    }
+    this.t += dt;
+    this.setVisible(true);
+    const r = k.rescueT;
+    // swing in from above, hold the kart up, let it go and fly away
+    const lift = r > 1.6 ? 3 + (r - 1.6) * 10 : r > 0.5 ? 2.6 : 2.6 + (0.5 - r) * 14;
+    const side = r < 0.5 ? (0.5 - r) * 6 : 0;
+    const root = this.hero.root;
+    root.position.copy(kartPos).add(new THREE.Vector3(side, lift, 0));
+    root.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.t * 0.8);
+    this.hero.animator.extra = { upperArmL: [-150, 0, 0], upperArmR: [-160, 0, 0], foreArmL: [-10, 0, 0], foreArmR: [-10, 0, 0] };
+    this.hero.pose('air', this.t * 60, dt * 60, 'air', 6);
+    // the web from his hand down to the kart
+    const hand = new THREE.Vector3();
+    this.hero.model.bones.handR.getWorldPosition(hand);
+    const to = kartPos.clone().add(new THREE.Vector3(0, 0.6, 0));
+    const d = to.clone().sub(hand);
+    const len = d.length();
+    this.line.position.copy(hand);
+    this.line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    this.line.scale.set(1, len, 1);
+    this.line.visible = r > 0.35;
+  }
+
+  dispose() {
+    this.hero.dispose();
+    this.line.geometry.dispose();
+    (this.line.material as THREE.Material).dispose();
+    this.line.removeFromParent();
+  }
+}
+
 /** Everything 3D of a race: circuit, karts with their drivers, effects; rendered for 1–4 views. */
 export class RaceWorld {
   readonly scene = new THREE.Scene();
@@ -154,6 +220,8 @@ export class RaceWorld {
   private iq = new THREE.Quaternion();
   /** sample effects kept alive so their shaders stay compiled */
   private warm: Effects | null = null;
+  private rescues: RescueView[] = [];
+  private heroFace: Awaited<ReturnType<typeof loadFace>> | null = null;
 
   private constructor(
     readonly race: Race,
@@ -175,17 +243,22 @@ export class RaceWorld {
   static async create(race: Race, followed: number[]): Promise<RaceWorld> {
     const faces = await Promise.all(race.karts.map((k) => loadFace(k.def)));
     const views = race.karts.map((k, i) => new RacerView(k.def, faces[i]));
-    return new RaceWorld(race, views, followed);
+    const w = new RaceWorld(race, views, followed);
+    w.heroFace = await loadFace(CAST.spiderpote);
+    // two heroes ready (more are created if many karts fall at once)
+    w.rescues.push(new RescueView(w.scene, w.heroFace), new RescueView(w.scene, w.heroFace));
+    return w;
   }
 
   /** Compiles every shader and uploads every texture before the race starts (no stutter later). */
   async prewarm(pipeline: RetroPipeline) {
     this.applyLights();
     for (const v of this.views) v.prepare();
+    for (const r of this.rescues) r.setVisible(true);
     // one of each effect, never shown (keeps the materials, hence the programs, alive)
     const warm = new Effects();
     const p = new THREE.Vector3(0, -1000, 0);
-    warm.kartSpark(p, 0xffffff, new THREE.Vector3(), true);
+    warm.kartSpark(p, 0xffffff, new THREE.Vector3(), 3);
     warm.flame(p, new THREE.Vector3());
     warm.puff(p, 0xffffff, 1, 10, new THREE.Vector3());
     warm.flash(p, 0xffffff);
@@ -201,6 +274,7 @@ export class RaceWorld {
     const cam = this.cams[0]?.camera ?? new THREE.PerspectiveCamera();
     await pipeline.prewarm(this.scene, cam);
     this.scene.remove(warm.group);
+    for (const r of this.rescues) r.setVisible(false);
   }
 
   private applyLights() {
@@ -225,6 +299,18 @@ export class RaceWorld {
       for (const c of this.cams) if (c.kart.pos.distanceToSquared(k.pos) < 70 * 70) near = true;
       this.views[i].update(k, alpha, dt, near ? this.effects : null);
     });
+    // rescues
+    race.karts.forEach((k, i) => {
+      if (k.rescueT <= 0 || this.rescues.some((r) => r.kart === k)) return;
+      let r = this.rescues.find((x) => !x.kart);
+      if (!r && this.heroFace) {
+        r = new RescueView(this.scene, this.heroFace);
+        this.rescues.push(r);
+      }
+      if (r) r.kart = k;
+      void i;
+    });
+    for (const r of this.rescues) if (r.kart) r.update(dt, this.views[r.kart.index].kart.root.position);
     for (const x of this.extras) x.update(dt, alpha);
     this.effects.update(dt * 60);
     if (!rects.length) return;
@@ -242,6 +328,7 @@ export class RaceWorld {
   dispose() {
     for (const x of this.extras) x.dispose();
     for (const v of this.views) v.dispose();
+    for (const r of this.rescues) r.dispose();
     this.effects.dispose();
     this.warm?.dispose();
     this.env.dispose();

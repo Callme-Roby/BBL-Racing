@@ -314,8 +314,10 @@ export class RacerView {
       const col = TIER_COLORS[k.driftTier];
       for (const c of this.kart.rearContacts) {
         c.getWorldPosition(tmpV);
-        const v = back.clone().multiplyScalar(0.05).add(new THREE.Vector3((Math.random() - 0.5) * 0.06, 0.03 + Math.random() * 0.04, (Math.random() - 0.5) * 0.06));
-        fx.kartSpark(tmpV, col, v, k.driftTier >= 2);
+        for (let n = 0; n < 1 + k.driftTier; n++) {
+          const v = back.clone().multiplyScalar(0.05 + Math.random() * 0.04).add(new THREE.Vector3((Math.random() - 0.5) * 0.08, 0.03 + Math.random() * 0.05, (Math.random() - 0.5) * 0.08));
+          fx.kartSpark(tmpV, col, v, k.driftTier);
+        }
       }
     }
     // turbo flames

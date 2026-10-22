@@ -618,14 +618,15 @@ export class Kart {
 
   /** Start: called at GO with the time the accelerator was held. */
   launch() {
+    // pressed during the « 3 » = burnout; between the « 2 » and the « 1 » = big boost
     const h = this.startHold;
-    if (h > 1.45) {
+    if (h > 2.12) {
       this.burnoutT = 1.1;
       this.events.push({ k: 'burnout' });
-    } else if (h > 0.55) {
+    } else if (h > 0.85) {
       this.addBoost('start', 1.3, 1.25);
       this.speed = this.params.top * 0.5;
-    } else if (h > 0.2) {
+    } else if (h > 0.3) {
       this.addBoost('start', 0.6, 0.9);
       this.speed = this.params.top * 0.3;
     }

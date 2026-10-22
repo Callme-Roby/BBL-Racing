@@ -419,11 +419,11 @@ export const KART_SIT: Pose = {
   thighR: [-78, 0, -9],
   shinR: [38, 0, 0],
   footR: [-30, 0, 0],
-  upperArmL: [-52, 0, 14],
-  foreArmL: [-52, 0, 0],
+  upperArmL: [-36, 0, 12],
+  foreArmL: [-50, 0, 0],
   handL: [0, 0, 0],
-  upperArmR: [-52, 0, -14],
-  foreArmR: [-52, 0, 0],
+  upperArmR: [-36, 0, -12],
+  foreArmR: [-50, 0, 0],
   handR: [0, 0, 0],
 };
 
@@ -432,10 +432,10 @@ const KART_DRIFT: Pose = merge(KART_SIT, {
   spine: [-4, 0, 0],
   chest: [4, 0, 0],
   head: [2, 0, 0],
-  upperArmL: [-60, 0, 22],
-  foreArmL: [-64, 0, 0],
-  upperArmR: [-48, 0, -6],
-  foreArmR: [-42, 0, 0],
+  upperArmL: [-44, 0, 18],
+  foreArmL: [-60, 0, 0],
+  upperArmR: [-32, 0, -6],
+  foreArmR: [-40, 0, 0],
 });
 
 function kartIdle(): Clip {

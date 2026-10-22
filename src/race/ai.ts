@@ -75,6 +75,7 @@ export class KartAI {
   private reverseT = 0;
   private wobble = 0;
   private driftHold = false;
+  private driftDir = 0;
   private targetTier: number;
   /** speed factor applied by the race (rubber band), read by Race */
   speedScale = 1;
@@ -121,34 +122,42 @@ export class KartAI {
     this.wobble += (Math.random() - 0.5) * this.level.mistakes * 60;
     this.wobble *= 0.97;
     let steer = Math.max(-1, Math.min(1, ang * this.level.steerGain + this.wobble));
-    // corner ahead: how sharp
-    let maxC = 0;
-    for (let a = 4; a < 24; a += 2) {
-      const c = curv[rb.closed ? (j + a) % N : Math.min(N - 1, j + a)];
-      if (Math.abs(c) > Math.abs(maxC)) maxC = c;
-    }
+    // corner ahead: yaw rate it needs at this speed (rad / s), now and a little further
+    const turn = k.params.turn;
+    const curvAt = (from: number, to: number) => {
+      let c = 0;
+      let n = 0;
+      for (let a = from; a <= to; a++) {
+        c += curv[rb.closed ? (((j + a) % N) + N) % N : Math.max(0, Math.min(N - 1, j + a))];
+        n++;
+      }
+      return c / n;
+    };
+    const cAhead = curvAt(6, 20);
+    const cNow = curvAt(0, 10);
+    const needAhead = cAhead * speed;
+    const needNow = cNow * speed;
     const inp: KartInput = { ...NO_INPUT, accel: true, steer };
-    // drift through sharp corners
+    // drift through the corners that need a lot of turning (mini-turbos up to the level's tier)
     if (this.level.maxTier > 0) {
-      const sharp = Math.abs(maxC) > 0.022 && speed > 12;
+      const onRoad = Math.abs(k.loc.d) < k.loc.w - 1.2;
       if (k.drift === 0) {
-        const onRoad = Math.abs(k.loc.d) < k.loc.w - 1.5;
-        if (sharp && onRoad && Math.sign(maxC) === Math.sign(steer || maxC) && Math.abs(ang) < 0.5 && !this.driftHold) this.driftHold = true;
+        if (!this.driftHold && onRoad && speed > 12 && Math.abs(needAhead) > 0.27 * turn && Math.sign(needAhead) === Math.sign(steer || needAhead) && Math.abs(ang) < 0.45) {
+          this.driftHold = true;
+          this.driftDir = Math.sign(needAhead);
+        }
+        if (this.driftHold) inp.steer = this.driftDir;
       } else {
-        // keep the drift until the corner ends or the target tier is reached on a straight
-        const done = k.driftTier >= this.targetTier && Math.abs(maxC) < 0.015;
-        const offEdge = Math.abs(k.loc.d) > k.loc.w - 0.8;
-        // the line is on the other side of the drift: the drift turns too much, let go
-        const overTurn = ang * k.drift < -0.12;
-        if (done || offEdge || overTurn || Math.abs(maxC) < 0.006) this.driftHold = false;
+        const d = k.drift;
+        // what normal steering would ask, mapped into the drift's range (0.36 .. 1.2 of the turn rate)
+        const want = (ang * this.level.steerGain + needNow / turn) * 0.5 * d;
+        const tighten = Math.max(-1, Math.min(1, (want - 0.78) / 0.42));
+        inp.steer = d * tighten;
+        const corner = Math.abs(needNow) > 0.16 * turn && Math.sign(needNow) === d;
+        const done = k.driftTier >= this.targetTier && Math.abs(needAhead) < 0.2 * turn;
+        if (!corner || done || want < 0.05 || !onRoad) this.driftHold = false;
       }
-      if (this.driftHold) {
-        inp.drift = true;
-        if (k.drift !== 0) {
-          // steer to stay on the line while drifting: tighten when the line is inside
-          inp.steer = Math.max(-1, Math.min(1, k.drift * 0.2 + ang * this.level.steerGain * 1.2));
-        } else inp.steer = Math.sign(maxC) || steer;
-      }
+      if (this.driftHold) inp.drift = true;
     }
     // stuck against something: back up and turn
     if (speed < 1.5 && time > 3) this.stuckT += 1 / 60;

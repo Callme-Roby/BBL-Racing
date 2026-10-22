@@ -384,10 +384,12 @@ export function buildTrackEnv(track: Track): TrackEnv {
           const cd = C(0xffffff).multiplyScalar(0.5);
           under.quadW([l0, r0, r1, l1].reverse(), [0, 0, 1, 0, 1, 1, 0, 1], [cd, cd, cd, cd]);
         } else if (raised(a) && raised(b) && j % 14 === 0 && rb.isMain) {
-          // pillars under a bridge
-          const mid = a.p.clone().addScaledVector(a.u, -0.2);
-          const h = mid.y - groundY;
-          if (h > 1.2) under.box(T(mid.x, groundY, mid.z, Math.atan2(a.t.x, a.t.z)), 0, 0, 0, a.w * 1.4, h, 1.2, { color: 0xd0d0d0, bottom: 0x808080, uv: 3 });
+          // columns under a bridge, each one stopping just under the (maybe banked) road
+          for (const d of [-a.w * 0.55, a.w * 0.55]) {
+            const top = at(a, d, -0.35);
+            const h = top.y - groundY;
+            if (h > 1.2) under.box(T(top.x, groundY, top.z, Math.atan2(a.t.x, a.t.z)), 0, 0, 0, 1.1, h, 1.1, { color: 0xd0d0d0, bottom: 0x808080, uv: 3 });
+          }
         }
       }
     }
@@ -487,7 +489,9 @@ export function buildTrackEnv(track: Track): TrackEnv {
   if (theme !== 'dojo') {
     hillRing(far, { radius: 430, seg: 64, base: -10, height: (a) => 26 + 14 * Math.sin(3 * a + 1) + 8 * Math.sin(7 * a + 2), top: st.hills[0], bottom: st.hills[1] });
   }
-  const groundBatch = kit.batch({ map: groundTex, vertexColors: true }, 'ground');
+  // the ground is drawn first and writes no depth: the road lying on it can never z-fight with it
+  const groundBatch = kit.batch({ map: groundTex, vertexColors: true, depthWrite: false }, 'ground');
+  groundBatch.renderOrder = -50;
   if (!track.hasVoid) {
     // big terrain under everything (offroad), in rings so the far parts stay cheap
     const box = new THREE.Box3();
@@ -505,7 +509,8 @@ export function buildTrackEnv(track: Track): TrackEnv {
       const y = track.groundY - 0.02;
       groundBatch.quadW([V(x0, y, z1), V(x1, y, z1), V(x1, y, z0), V(x0, y, z0)], [x0 / 6, z1 / 6, x1 / 6, z1 / 6, x1 / 6, z0 / 6, x0 / 6, z0 / 6], [gc, gc, gc, gc]);
     }
-    const ring = kit.batch({ vertexColors: true, fog: true }, 'ground-far');
+    const ring = kit.batch({ vertexColors: true, fog: true, depthWrite: false }, 'ground-far');
+    ring.renderOrder = -60;
     const fc = C(st.ground).multiplyScalar(0.9);
     for (let i = 0; i < 32; i++) {
       const a0 = (i / 32) * Math.PI * 2;

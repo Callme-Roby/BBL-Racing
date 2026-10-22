@@ -395,6 +395,8 @@ const ALL_CINE_FX = Object.keys({
 export class Effects {
   readonly group = new THREE.Group();
   private parts: Particle[] = [];
+  /** dead sprites ready to be reused */
+  private pool: THREE.Sprite[] = [];
   private chunks: Chunk[] = [];
   private decals: Decal[] = [];
   private chunkGeo: THREE.BoxGeometry | null = null;
@@ -428,23 +430,25 @@ export class Effects {
       depthTest?: boolean;
     } = {},
   ) {
-    const mat = new THREE.SpriteMaterial({
-      map,
-      color,
-      transparent: true,
-      depthWrite: false,
-      depthTest: opts.depthTest ?? false,
-      opacity: opts.opacity ?? 1,
-      blending: opts.additive === false ? THREE.NormalBlending : THREE.AdditiveBlending,
-    });
+    // sprites (and their materials) are recycled: no allocation per particle once warmed up
+    let sprite = this.pool.pop();
+    if (!sprite) {
+      sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+      sprite.renderOrder = 10;
+    }
+    const mat = sprite.material;
+    mat.map = map;
+    mat.color.set(color);
+    mat.depthTest = opts.depthTest ?? false;
+    mat.opacity = opts.opacity ?? 1;
+    mat.blending = opts.additive === false ? THREE.NormalBlending : THREE.AdditiveBlending;
+    mat.rotation = opts.rot ?? 0;
     mat.userData.o = opts.opacity ?? 1;
-    if (opts.rot) mat.rotation = opts.rot;
-    const sprite = new THREE.Sprite(mat);
+    sprite.visible = true;
     sprite.position.copy(pos);
     const aspect = opts.aspect ?? 1;
     sprite.scale.set(scale * aspect, scale, 1);
-    sprite.renderOrder = 10;
-    this.group.add(sprite);
+    if (sprite.parent !== this.group) this.group.add(sprite);
     this.parts.push({
       sprite,
       vel,
@@ -801,10 +805,13 @@ export class Effects {
   // -------------------------------------------------------------------------
 
   /** mini-turbo spark at a rear wheel */
-  kartSpark(pos: THREE.Vector3, color: number, vel: THREE.Vector3, big = false) {
+  kartSpark(pos: THREE.Vector3, color: number, vel: THREE.Vector3, tier = 0) {
     const t = tex();
-    this.spawn(t.dot, color, pos.clone(), vel, big ? 0.14 : 0.09, big ? 14 : 9, { gravity: 0.006, depthTest: true });
-    if (big) this.spawn(t.star, color, pos.clone(), new THREE.Vector3(), 0.32, 4, { depthTest: true });
+    const k = tier === 0 ? 0.7 : 1 + tier * 0.15;
+    // a short streak flying back, a dot, and a flare stuck on the wheel
+    this.spawn(t.dot, color, pos.clone(), vel, 0.12 * k, 12, { gravity: 0.006, depthTest: true, aspect: 2.2, rot: Math.atan2(vel.y, Math.hypot(vel.x, vel.z)) });
+    this.spawn(t.dot, 0xffffff, pos.clone(), vel.clone().multiplyScalar(0.7).add(new THREE.Vector3(0, 0.02, 0)), 0.07 * k, 9, { gravity: 0.006, depthTest: true });
+    if (tier > 0) this.spawn(t.star, color, pos.clone(), new THREE.Vector3(), 0.42 * k, 3, { depthTest: true, rot: Math.random() * 6 });
   }
 
   /** turbo flame out of an exhaust (`back` = direction of the flame, m / frame) */
@@ -862,9 +869,10 @@ export class Effects {
       const p = this.parts[i];
       p.life -= dtFrames;
       if (p.life <= 0) {
-        this.group.remove(p.sprite);
-        p.sprite.material.dispose();
-        this.parts.splice(i, 1);
+        p.sprite.visible = false;
+        this.pool.push(p.sprite);
+        this.parts[i] = this.parts[this.parts.length - 1];
+        this.parts.pop();
         continue;
       }
       p.vel.y -= p.gravity * dtFrames;
@@ -893,8 +901,8 @@ export class Effects {
 
   clear() {
     for (const p of this.parts) {
-      this.group.remove(p.sprite);
-      p.sprite.material.dispose();
+      p.sprite.visible = false;
+      this.pool.push(p.sprite);
     }
     this.parts.length = 0;
     for (const c of this.chunks) this.group.remove(c.mesh);
@@ -943,6 +951,11 @@ export class Effects {
   /** Frees everything (geometries and materials owned by this instance). */
   dispose() {
     this.clear();
+    for (const sp of this.pool) {
+      this.group.remove(sp);
+      sp.material.dispose();
+    }
+    this.pool.length = 0;
     this.chunkGeo?.dispose();
     this.flatGeo?.dispose();
     for (const m of this.chunkMats.values()) m.dispose();
