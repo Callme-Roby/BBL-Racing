@@ -404,6 +404,8 @@ export class Effects {
   private chunkMats = new Map<number, PS1Material>();
   /** simulation speed of everything (K.O. slow motion < 1) */
   timeScale = 1;
+  /** every particle is drawn by a few batched meshes (one per texture / blending), not one sprite each */
+  private batches = new ParticleBatches(this.group);
 
   private spawn(
     map: THREE.Texture,
@@ -448,7 +450,6 @@ export class Effects {
     sprite.position.copy(pos);
     const aspect = opts.aspect ?? 1;
     sprite.scale.set(scale * aspect, scale, 1);
-    if (sprite.parent !== this.group) this.group.add(sprite);
     this.parts.push({
       sprite,
       vel,
@@ -897,6 +898,7 @@ export class Effects {
       const k = p.life / p.max;
       p.sprite.material.opacity = Math.min(1, k * 1.6) * (p.sprite.material.userData.o ?? 1);
     }
+    this.batches.draw(this.parts);
   }
 
   clear() {
@@ -905,6 +907,7 @@ export class Effects {
       this.pool.push(p.sprite);
     }
     this.parts.length = 0;
+    this.batches.draw(this.parts);
     for (const c of this.chunks) this.group.remove(c.mesh);
     this.chunks.length = 0;
     for (const d of this.decals) {
@@ -951,6 +954,7 @@ export class Effects {
   /** Frees everything (geometries and materials owned by this instance). */
   dispose() {
     this.clear();
+    this.batches.dispose();
     for (const sp of this.pool) {
       this.group.remove(sp);
       sp.material.dispose();
@@ -1355,5 +1359,156 @@ export class Effects {
       }
       mat.opacity = d.opacity * Math.min(1, (d.life / d.max) * (d.grow ? 1.5 : 3));
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// particle batching: all the live particles sharing a texture / blending / depth test are drawn
+// as camera-facing quads of ONE mesh (a single draw call instead of one per sprite)
+// ---------------------------------------------------------------------------
+const BATCH_VERT = /* glsl */ `
+attribute vec3 center;
+attribute vec2 corner;
+attribute vec3 sizeRot;
+attribute vec4 rgba;
+varying vec2 vUv;
+varying vec4 vColor;
+void main() {
+  vUv = corner + 0.5;
+  vColor = rgba;
+  vec4 mv = modelViewMatrix * vec4(center, 1.0);
+  vec2 c = corner * sizeRot.xy;
+  float cs = cos(sizeRot.z);
+  float sn = sin(sizeRot.z);
+  mv.xy += vec2(c.x * cs - c.y * sn, c.x * sn + c.y * cs);
+  gl_Position = projectionMatrix * mv;
+}`;
+const BATCH_FRAG = /* glsl */ `
+uniform sampler2D map;
+varying vec2 vUv;
+varying vec4 vColor;
+void main() {
+  vec4 t = texture2D(map, vUv);
+  gl_FragColor = vec4(t.rgb * vColor.rgb, t.a * vColor.a);
+}`;
+
+interface Batch {
+  mesh: THREE.Mesh;
+  cap: number;
+  center: Float32Array;
+  sizeRot: Float32Array;
+  rgba: Float32Array;
+  n: number;
+}
+
+class ParticleBatches {
+  private map = new Map<string, Batch>();
+
+  constructor(private group: THREE.Group) {}
+
+  private batch(m: THREE.SpriteMaterial): Batch {
+    const additive = m.blending === THREE.AdditiveBlending;
+    const key = `${m.map?.uuid ?? '-'}|${additive ? 1 : 0}|${m.depthTest ? 1 : 0}`;
+    let b = this.map.get(key);
+    if (!b) {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { map: { value: m.map } },
+        vertexShader: BATCH_VERT,
+        fragmentShader: BATCH_FRAG,
+        transparent: true,
+        depthWrite: false,
+        depthTest: m.depthTest,
+        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      });
+      const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 10;
+      this.group.add(mesh);
+      b = { mesh, cap: 0, center: new Float32Array(0), sizeRot: new Float32Array(0), rgba: new Float32Array(0), n: 0 };
+      this.map.set(key, b);
+    }
+    return b;
+  }
+
+  private grow(b: Batch, need: number) {
+    let cap = Math.max(64, b.cap);
+    while (cap < need) cap *= 2;
+    if (cap === b.cap) return;
+    b.cap = cap;
+    const g = new THREE.BufferGeometry();
+    const corner = new Float32Array(cap * 8);
+    const index = new Uint32Array(cap * 6);
+    for (let i = 0; i < cap; i++) {
+      corner.set([-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5], i * 8);
+      index.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+    }
+    b.center = new Float32Array(cap * 12);
+    b.sizeRot = new Float32Array(cap * 12);
+    b.rgba = new Float32Array(cap * 16);
+    g.setAttribute('corner', new THREE.BufferAttribute(corner, 2));
+    g.setAttribute('center', new THREE.BufferAttribute(b.center, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('sizeRot', new THREE.BufferAttribute(b.sizeRot, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('rgba', new THREE.BufferAttribute(b.rgba, 4).setUsage(THREE.DynamicDrawUsage));
+    // three.js needs a position attribute (bounds); the shader doesn't use it
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cap * 12), 3));
+    g.setIndex(new THREE.BufferAttribute(index, 1));
+    b.mesh.geometry.dispose();
+    b.mesh.geometry = g;
+  }
+
+  draw(parts: { sprite: THREE.Sprite }[]) {
+    for (const b of this.map.values()) b.n = 0;
+    // count per batch first (grow once)
+    const counts = new Map<Batch, number>();
+    for (const p of parts) {
+      const b = this.batch(p.sprite.material);
+      counts.set(b, (counts.get(b) ?? 0) + 1);
+    }
+    for (const [b, n] of counts) if (n > b.cap) this.grow(b, n);
+    for (const p of parts) {
+      const sp = p.sprite;
+      const m = sp.material;
+      const b = this.batch(m);
+      const i = b.n++;
+      const r = m.color.r;
+      const g = m.color.g;
+      const bl = m.color.b;
+      const a = m.opacity;
+      for (let v = 0; v < 4; v++) {
+        const o3 = (i * 4 + v) * 3;
+        b.center[o3] = sp.position.x;
+        b.center[o3 + 1] = sp.position.y;
+        b.center[o3 + 2] = sp.position.z;
+        b.sizeRot[o3] = sp.scale.x;
+        b.sizeRot[o3 + 1] = sp.scale.y;
+        b.sizeRot[o3 + 2] = m.rotation;
+        const o4 = (i * 4 + v) * 4;
+        b.rgba[o4] = r;
+        b.rgba[o4 + 1] = g;
+        b.rgba[o4 + 2] = bl;
+        b.rgba[o4 + 3] = a;
+      }
+    }
+    for (const b of this.map.values()) {
+      const g = b.mesh.geometry;
+      b.mesh.visible = b.n > 0;
+      if (!b.n) continue;
+      g.setDrawRange(0, b.n * 6);
+      for (const name of ['center', 'sizeRot', 'rgba']) {
+        const at = g.getAttribute(name) as THREE.BufferAttribute;
+        at.clearUpdateRanges();
+        at.addUpdateRange(0, b.n * 4 * at.itemSize);
+        at.needsUpdate = true;
+      }
+    }
+  }
+
+  dispose() {
+    for (const b of this.map.values()) {
+      b.mesh.removeFromParent();
+      b.mesh.geometry.dispose();
+      (b.mesh.material as THREE.Material).dispose();
+    }
+    this.map.clear();
   }
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { FighterDef } from '../data/roster';
 import type { FaceAssets } from './faceTexture';
 import { createPS1Material, makeCanvasTexture, pixelTexture, type PS1Material } from './ps1Material';
@@ -30,6 +31,8 @@ export interface KartModel {
   rearContacts: THREE.Object3D[];
   /** blue glow under the wheels in anti-gravity sections */
   hover: THREE.Mesh;
+  /** small parts hidden on far-away karts (fewer draw calls) */
+  details: THREE.Object3D[];
   materials: PS1Material[];
   /** wheel radius (spin speed) */
   wheelR: number;
@@ -161,6 +164,8 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
   for (const sx of [-1, 1]) b.box(I, sx * 0.5, 0.1, -1.06, 0.06, 0.08, 0.16, { color: metal });
   // steering column
   b.beam(I, [0, 0.3, 0.62], [0, 0.52, 0.36], 0.05, { color: dark });
+  // the frame of the number plate (part of the chassis: one draw call less)
+  if (face) b.box(new THREE.Matrix4().makeTranslation(0, 0.415, 0.62).multiply(new THREE.Matrix4().makeRotationX(0.26)), 0, -0.012, 0, 0.36, 0.01, 0.46, { color: trim });
   const chassis = new THREE.Mesh(b.toGeometry(), vc);
   body.add(chassis);
 
@@ -169,9 +174,8 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
   swPivot.position.set(0, 0.54, 0.34);
   swPivot.rotation.x = -1.1;
   const swMat = mat({ color: 0x1c1c20 });
-  const sw = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.03, 4, 8), swMat);
-  const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.03), swMat);
-  sw.add(spoke);
+  const swGeo = mergeGeometries([new THREE.TorusGeometry(0.15, 0.03, 4, 8), new THREE.BoxGeometry(0.28, 0.03, 0.03)]);
+  const sw = new THREE.Mesh(swGeo, swMat);
   swPivot.add(sw);
   body.add(swPivot);
 
@@ -187,10 +191,6 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
     plate.position.set(0, 0.42, 0.62);
     plate.rotation.x = -Math.PI / 2 + 0.26;
     body.add(plate);
-    const frame = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.46), mat({ color: trim }));
-    frame.position.set(0, 0.415, 0.62);
-    frame.rotation.x = -Math.PI / 2 + 0.26;
-    body.add(frame);
   }
 
   // wheels
@@ -202,6 +202,7 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
   const hubGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.26, 6).rotateZ(Math.PI / 2);
   const wheels: THREE.Object3D[] = [];
   const mounts: THREE.Group[] = [];
+  const details: THREE.Object3D[] = [swPivot];
   const mk = (x: number, z: number, rear: boolean) => {
     const mount = new THREE.Group();
     mount.position.set(x, rear ? wheelR + 0.03 : wheelR, z);
@@ -212,6 +213,7 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
     const hub = new THREE.Mesh(hubGeo, hubMat);
     hub.position.x = x > 0 ? 0.03 : -0.03;
     spin.add(hub);
+    details.push(hub);
     steerG.add(spin);
     body.add(mount);
     wheels.push(spin);
@@ -261,6 +263,7 @@ export function buildKart(def: FighterDef, face: FaceAssets | null): KartModel {
     exhausts,
     rearContacts,
     hover,
+    details,
     materials,
     wheelR,
     dispose() {

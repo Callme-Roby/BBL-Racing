@@ -96,18 +96,9 @@ export class RetroPipeline {
           float r0 = mix(0.36, 0.85, h) * (1.25 - 0.45 * strength);
           return on * wedge * smoothstep(r0, r0 + 0.12, r);
         }
-        float bayer4(vec2 p) {
-          int x = int(mod(p.x, 4.0));
-          int y = int(mod(p.y, 4.0));
-          int i = x + y * 4;
-          float m[16];
-          m[0]=0.0; m[1]=8.0; m[2]=2.0; m[3]=10.0;
-          m[4]=12.0; m[5]=4.0; m[6]=14.0; m[7]=6.0;
-          m[8]=3.0; m[9]=11.0; m[10]=1.0; m[11]=9.0;
-          m[12]=15.0; m[13]=7.0; m[14]=13.0; m[15]=5.0;
-          for (int k = 0; k < 16; k++) { if (k == i) return m[k] / 16.0; }
-          return 0.0;
-        }
+        // 4x4 ordered dither threshold, computed (no array / loop: cheap on phone GPUs)
+        float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
+        float bayer4(vec2 p) { return bayer2(0.5 * p) * 0.25 + bayer2(p); }
         void main() {
           vec2 px = floor(vUv * uLow);
           vec3 c = texture2D(tDiffuse, (px + 0.5) / uLow).rgb;

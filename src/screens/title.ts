@@ -29,7 +29,7 @@ class Attract {
     const seed = (Math.random() * 1e9) | 0;
     const track = CIRCUITS[Math.floor(Math.random() * CIRCUITS.length)];
     const racers = shuffled(fullRoster(), seed)
-      .slice(0, 8)
+      .slice(0, 6)
       .map((def) => ({ def }));
     const race = new Race({ track, racers, laps: 99, cc: 150, difficulty: 'hard', items: true, seed });
     race.introTicks = 0;

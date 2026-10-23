@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { FighterDef } from '../data/roster';
 import type { Kart } from '../race/kart';
 import { ghostMaterial } from './afterimage';
@@ -21,22 +22,33 @@ const AX_X = new THREE.Vector3(1, 0, 0);
 /** Translucent copies of the kart body left behind during a turbo (the driver has its own Afterimage). */
 class KartGhosts {
   readonly group = new THREE.Group();
+  private geo: THREE.BufferGeometry;
   private ghosts: { obj: THREE.Object3D; mat: THREE.ShaderMaterial; life: number; alpha: number }[] = [];
   private next = 0;
   private acc = 0;
   private readonly life = 12;
 
   constructor(src: THREE.Object3D, count = 3) {
+    // the whole kart as ONE mesh (a ghost is a flat translucent silhouette: one draw call)
+    src.updateMatrixWorld(true);
+    const inv = src.matrixWorld.clone().invert();
+    const parts: THREE.BufferGeometry[] = [];
+    src.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || !m.visible) return;
+      let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+      for (const name of Object.keys(g.attributes)) if (name !== 'position') g.deleteAttribute(name);
+      g.applyMatrix4(inv.clone().multiply(m.matrixWorld));
+      parts.push(g);
+    });
+    const geo = mergeGeometries(parts) ?? new THREE.BufferGeometry();
+    for (const g of parts) g.dispose();
+    this.geo = geo;
     for (let i = 0; i < count; i++) {
       const mat = ghostMaterial(true);
-      const obj = src.clone(true);
-      obj.traverse((o) => {
-        const m = o as THREE.Mesh;
-        if (m.isMesh) {
-          m.material = mat;
-          m.renderOrder = 3;
-        }
-      });
+      const obj = new THREE.Mesh(geo, mat);
+      obj.renderOrder = 3;
+      obj.frustumCulled = false;
       obj.visible = false;
       obj.matrixAutoUpdate = false;
       this.group.add(obj);
@@ -78,6 +90,7 @@ class KartGhosts {
   dispose() {
     this.group.removeFromParent();
     for (const g of this.ghosts) g.mat.dispose();
+    this.geo.dispose();
   }
 }
 
@@ -109,6 +122,8 @@ export class RacerView {
   dustColor = 0xb8a070;
   /** draw effects (false for far-away karts on small screens) */
   fx = true;
+  /** close to a camera: full detail (set by the race world) */
+  close = true;
   /** finished: celebrate (true) or sulk (false); null = racing */
   result: boolean | null = null;
   /** shown above the kart while carried back by the rescue */
@@ -232,8 +247,9 @@ export class RacerView {
     const boosting = k.boostT > 0 || k.starT > 0;
     let ghostTint: THREE.Color | null = null;
     if (boosting && (k.starT > 0 || k.boostPower >= 1 || (k.boostKind === 'drift' && k.boostT > 0.4))) ghostTint = this.tint.set(k.starT > 0 ? 0xffd040 : k.boostKind === 'drift' ? 0xff8a30 : 0xffc040);
-    this.ghosts.update(body, ghostTint, dtF, 4);
-    this.driver.updateTrail(ghostTint, dtF, 4, 0.28);
+    // turbo ghosts: only for karts in view range; the driver's (heavier) only close to a camera
+    this.ghosts.update(body, fx ? ghostTint : null, dtF, 4);
+    this.driver.updateTrail(this.close ? ghostTint : null, dtF, 4, 0.28);
 
     if (fx && this.fx) this.emit(k, dt, fx);
   }

@@ -96,7 +96,9 @@ export class App {
     st.setProperty('--tu', Math.max(0.7, Math.min(1.3, u)).toFixed(3) + 'px');
     this.root.classList.toggle('touchui', touchUi);
     this.root.classList.toggle('split', split);
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // the picture is a pixelated upscale of a 240-720 line image: drawing the final canvas at
+    // the screen's full density (2-3x on phones) only multiplies the work of the last pass
+    const dpr = Math.min(window.devicePixelRatio || 1, 1);
     const pw = Math.round(W * dpr);
     const ph = Math.round(gameH * dpr);
     // resizing the canvas clears it: only when something changed
@@ -121,9 +123,37 @@ export class App {
     }
   }
 
+  /** smoothed frame time (s) and how long it has been too slow / comfortable */
+  private avgDt = 1 / 60;
+  private slowT = 0;
+  /** lines given up by the automatic quality (0 = the setting as chosen) */
+  private autoDrop = 0;
+
+  /**
+   * Automatic quality: when the device can't keep up (< ~45 images/s for a few seconds), the
+   * internal image gets fewer lines (480 → 360 → 270 → 240). Not saved: the next visit tries again.
+   */
+  private adapt(dt: number) {
+    if (dt <= 0 || dt >= 0.1 || document.hidden) return;
+    this.avgDt += (dt - this.avgDt) * 0.05;
+    if (this.avgDt > 1 / 45) this.slowT += dt;
+    else this.slowT = Math.max(0, this.slowT - dt * 0.5);
+    if (this.slowT < 3) return;
+    this.slowT = 0;
+    const steps = [720, 480, 360, 270, 240];
+    const cur = this.pipeline.lines;
+    const next = steps.find((l) => l < cur);
+    if (!next) return;
+    this.autoDrop++;
+    this.pipeline.lines = next;
+    this.resize(true);
+    console.info(`[BBL KART] qualité auto : ${next} lignes`);
+  }
+
   private loop(t: number) {
     const dt = Math.min(0.1, (t - this.last) / 1000);
     this.last = t;
+    this.adapt(dt);
     input.poll();
     try {
       this.screen?.frame(dt);

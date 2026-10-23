@@ -332,6 +332,8 @@ export class RaceWorld {
     warm.cine('web', p);
     warm.glyph('question', p);
     warm.cine('powerAura', p);
+    // builds the batched particle meshes (one per texture / blending) so their shaders compile now
+    warm.update(0);
     this.scene.add(warm.group);
     this.warm = warm;
     const samples = this.items?.samples() ?? [];
@@ -362,7 +364,15 @@ export class RaceWorld {
     race.karts.forEach((k, i) => {
       // effects only for karts near a local camera (cheap on phones)
       let near = false;
-      for (const c of this.cams) if (c.kart.pos.distanceToSquared(k.pos) < 70 * 70) near = true;
+      let close = false;
+      for (const c of this.cams) {
+        if (c.kart.pos.distanceToSquared(k.pos) < 70 * 70) near = true;
+        if (c.camera.position.distanceToSquared(k.pos) < 22 * 22) close = true;
+      }
+      // small parts (hubs, steering wheel) only on the karts close to a camera
+      const kv = this.views[i].kart;
+      if (kv.details[0].visible !== close) for (const d of kv.details) d.visible = close;
+      this.views[i].close = close;
       this.views[i].update(k, alpha, dt, near ? this.effects : null);
     });
     // rescues

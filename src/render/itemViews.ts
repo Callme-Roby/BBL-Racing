@@ -117,7 +117,8 @@ interface ObjView {
 }
 
 export class ItemViews {
-  private boxes: THREE.Group[] = [];
+  private boxMesh: THREE.InstancedMesh | null = null;
+  private boxTmp = new THREE.Object3D();
   private boxMat: PS1Material;
   private objs = new Map<number, ObjView>();
   private rockets: (THREE.Object3D | null)[] = [];
@@ -146,14 +147,12 @@ export class ItemViews {
       cols.push(c.r, c.g, c.b);
     }
     geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-    for (const spot of items.boxes.length ? race.track.boxes : []) {
-      const g = new THREE.Group();
-      const m = new THREE.Mesh(geo, this.boxMat);
-      g.add(m);
-      g.position.copy(spot.pos);
-      scene.add(g);
-      this.boxes.push(g);
-    }
+    // all the item boxes in one draw call
+    const spots = items.boxes.length ? race.track.boxes : [];
+    this.boxMesh = new THREE.InstancedMesh(geo, this.boxMat, Math.max(1, spots.length));
+    this.boxMesh.count = spots.length;
+    this.boxMesh.frustumCulled = false;
+    scene.add(this.boxMesh);
     this.rockets = race.karts.map(() => null);
     this.qAcc = race.karts.map(() => 0);
   }
@@ -241,14 +240,21 @@ export class ItemViews {
     this.booms.length = 0;
     const items = this.items;
     // boxes: spin, bob, pop back in
-    this.boxes.forEach((g, i) => {
-      const r = items.boxes[i]?.respawn ?? 0;
-      g.visible = r <= 0 || r < 0.3;
-      const k = r <= 0 ? 1 : Math.max(0, 1 - r / 0.3);
-      g.scale.setScalar(Math.max(0.01, k));
-      g.rotation.set(this.time * 0.9, this.time * 1.3, 0.3);
-      g.position.y = this.race.track.boxes[i].pos.y + Math.sin(this.time * 2 + i) * 0.12;
-    });
+    const bm = this.boxMesh;
+    if (bm) {
+      const g = this.boxTmp;
+      for (let i = 0; i < bm.count; i++) {
+        const r = items.boxes[i]?.respawn ?? 0;
+        const k = r <= 0 ? 1 : r < 0.3 ? Math.max(0, 1 - r / 0.3) : 0;
+        g.scale.setScalar(Math.max(0.0001, k));
+        g.rotation.set(this.time * 0.9, this.time * 1.3, 0.3);
+        g.position.copy(this.race.track.boxes[i].pos);
+        g.position.y += Math.sin(this.time * 2 + i) * 0.12;
+        g.updateMatrix();
+        bm.setMatrixAt(i, g.matrix);
+      }
+      bm.instanceMatrix.needsUpdate = true;
+    }
     this.boxMat.uniforms.uColor.value.setHSL((this.time * 0.25) % 1, 0.5, 0.75);
     // objects
     const alive = new Set<number>();
@@ -367,8 +373,9 @@ export class ItemViews {
   }
 
   dispose() {
-    for (const g of this.boxes) g.removeFromParent();
-    this.boxes[0]?.children[0] && (this.boxes[0].children[0] as THREE.Mesh).geometry.dispose();
+    this.boxMesh?.removeFromParent();
+    this.boxMesh?.geometry.dispose();
+    this.boxMesh?.dispose();
     this.boxMat.dispose();
     for (const v of this.objs.values()) this.drop(v);
     this.objs.clear();
