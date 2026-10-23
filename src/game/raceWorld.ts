@@ -142,7 +142,8 @@ export class ChaseCam {
       this.fwd.copy(kfwd);
       this.up.copy(kup);
     }
-    this.fwd.lerp(wantFwd, Math.min(1, dt * 5)).normalize();
+    // a little slower while drifting: the camera swings gently with the slide
+    this.fwd.lerp(wantFwd, Math.min(1, dt * (k.drift !== 0 ? 3.5 : 5))).normalize();
     // gravity-ish up: follows the road strongly in anti-gravity, gently elsewhere
     const wantUp = k.loc.antigrav ? kup : kup.clone().lerp(new THREE.Vector3(0, 1, 0), 0.6).normalize();
     this.up.lerp(wantUp, Math.min(1, dt * 3)).normalize();

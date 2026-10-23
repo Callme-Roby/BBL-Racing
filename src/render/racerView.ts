@@ -173,10 +173,11 @@ export class RacerView {
 
     // ---- body: drift angle, lean, hop, trick, spin-out, squash
     const drifting = k.drift !== 0;
-    const wantYaw = drifting ? k.drift * (0.42 + 0.12 * k.input.steer * k.drift) : k.lat * -0.03;
-    this.driftYaw += (wantYaw - this.driftYaw) * Math.min(1, dt * 8);
-    const wantLean = (drifting ? -k.drift * 0.1 : -k.steer * 0.06 * Math.min(1, Math.abs(k.speed) / 12)) * (k.grounded ? 1 : 0.4);
-    this.lean += (wantLean - this.lean) * Math.min(1, dt * 8);
+    // drift angle of the body: moderate, eased in and out (no sudden swing)
+    const wantYaw = drifting ? k.drift * (0.3 + 0.08 * k.steer * k.drift) : k.lat * -0.03;
+    this.driftYaw += (wantYaw - this.driftYaw) * Math.min(1, dt * 4.5);
+    const wantLean = (drifting ? -k.drift * 0.07 : -k.steer * 0.05 * Math.min(1, Math.abs(k.speed) / 12)) * (k.grounded ? 1 : 0.4);
+    this.lean += (wantLean - this.lean) * Math.min(1, dt * 5);
     // little bounce on rough ground
     const rough = k.grounded && (k.surface === 'offroad' || k.surface === 'dirt' || k.surface === 'curb') ? Math.sin(this.time * 40) * 0.025 * Math.min(1, Math.abs(k.speed) / 10) : 0;
     this.hopY = rough;

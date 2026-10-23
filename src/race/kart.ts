@@ -35,7 +35,9 @@ const DRIFT_BOOST = [0, 0.55, 1.05, 1.7];
  * drift tightens it, steering out of it opens it (wide sweeping arcs, never tighter than
  * normal full lock).
  */
-export const DRIFT_YAW = { base: 0.56, range: 0.3 };
+export const DRIFT_YAW = { base: 0.52, range: 0.26 };
+/** seconds for a drift to build up from normal steering to its full turn (no sudden snap) */
+const DRIFT_EASE_IN = 0.45;
 
 export type BoostKind = 'drift' | 'start' | 'trick' | 'pad' | 'slip' | 'item' | 'bump';
 
@@ -119,6 +121,8 @@ export class Kart {
   // ---- drift
   drift: -1 | 0 | 1 = 0;
   driftCharge = 0;
+  /** seconds since the current drift started */
+  private driftT = 0;
   driftTier = 0;
   /** hop: the drift starts if the button is still held when it lands */
   private hopping = false;
@@ -352,7 +356,8 @@ export class Kart {
     this.itemPressed = inp.item && !this.prevItem;
     this.itemHeld = inp.item;
     this.prevItem = inp.item;
-    this.steer += (inp.steer - this.steer) * Math.min(1, dt * 14);
+    // steering is smoothed (more while drifting: a keyboard tap doesn't jerk the slide)
+    this.steer += (inp.steer - this.steer) * Math.min(1, dt * (this.drift !== 0 ? 5 : 14));
 
     if (!raceOn) {
       // countdown: the start boost is decided by when the accelerator went down
@@ -422,7 +427,7 @@ export class Kart {
     if (control && this.grounded) {
       if (driftPress && Math.abs(sp) > 3 && !this.hopping) {
         // hop (the drift starts on landing if the button is still held)
-        this.takeOff(this.up.clone().multiplyScalar(3.6));
+        this.takeOff(this.up.clone().multiplyScalar(3));
         this.hopping = true;
         this.events.push({ k: 'hop' });
       }
@@ -431,9 +436,14 @@ export class Kart {
         else {
           const d = this.drift;
           // always turning into the drift: steering opens or tightens it
-          const tighten = inp.steer * d;
-          yawRate = d * p.turn * (DRIFT_YAW.base + DRIFT_YAW.range * tighten) * speedK;
-          this.lat += (-d * Math.abs(sp) * (0.16 - 0.05 * tighten) - this.lat) * Math.min(1, dt * 4);
+          const tighten = Math.max(-1, Math.min(1, this.steer * d));
+          // the drift builds up gently from the turn the kart already had
+          this.driftT += dt;
+          const e = Math.min(1, this.driftT / DRIFT_EASE_IN);
+          const ease = e * e * (3 - 2 * e);
+          const normal = this.steer * p.turn * speedK;
+          yawRate = normal + (d * p.turn * (DRIFT_YAW.base + DRIFT_YAW.range * tighten) * speedK - normal) * ease;
+          this.lat += (-d * Math.abs(sp) * (0.11 - 0.035 * tighten) * ease - this.lat) * Math.min(1, dt * 2.5);
           if (g && g.surface !== 'offroad') {
             const before = this.driftTier;
             this.driftCharge += dt * p.driftRate * (1 + 0.85 * Math.max(0, tighten));
@@ -452,7 +462,7 @@ export class Kart {
       tmpQ.setFromAxisAngle(this.up, -yawRate * dt);
       this.fwd.applyQuaternion(tmpQ).normalize();
     }
-    if (this.drift === 0) this.lat -= this.lat * Math.min(1, dt * 9);
+    if (this.drift === 0) this.lat -= this.lat * Math.min(1, dt * 4);
 
     // ---- integrate
     if (this.grounded) {
@@ -584,6 +594,7 @@ export class Kart {
     // drift starts when landing from the hop with a direction held
     if (wasHop && this.input.drift && Math.abs(this.input.steer) > 0.25 && this.speed > DRIFT_MIN_SPEED && this.spinT <= 0) {
       this.drift = this.input.steer > 0 ? 1 : -1;
+      this.driftT = 0;
       this.driftCharge = 0;
       this.driftTier = 0;
     }
