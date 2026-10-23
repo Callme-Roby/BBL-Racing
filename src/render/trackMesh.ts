@@ -183,6 +183,9 @@ export function buildTrackEnv(track: Track): TrackEnv {
   const theme = track.def.theme;
   const st = STYLES[theme];
   const kit = new Kit(0x5eed + track.def.id.length * 977, 'track:' + track.def.id);
+  // perspective-correct textures on the circuit: the big road polygons near the camera would
+  // otherwise warp (PS1 affine mapping) and the kerbs / lines zigzag at the bottom of the screen
+  kit.defaults = { affine: false };
   const r = kit.rand;
 
   // ---------------------------------------------------------------- textures

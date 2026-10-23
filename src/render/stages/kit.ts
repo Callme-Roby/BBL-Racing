@@ -390,8 +390,11 @@ export class Kit {
     return this.own(makeCanvasTexture(w, h, draw, repeat));
   }
 
+  /** options applied to every material of this kit (e.g. affine: false for race tracks) */
+  defaults: Partial<PS1Options> = {};
+
   mat(o: PS1Options): PS1Material {
-    return this.own(createPS1Material(o));
+    return this.own(createPS1Material({ ...this.defaults, ...o }));
   }
 
   /** New merge batch. Options default to vertexColors: true. */

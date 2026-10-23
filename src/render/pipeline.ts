@@ -188,7 +188,8 @@ export class RetroPipeline {
       this.rt.setSize(lowW, lowH);
       (this.postMat.uniforms.uLow.value as THREE.Vector2).set(lowW, lowH);
     }
-    PS1Globals.uSnapRes.value.set(this.lowW / 2, this.lowH / 2);
+    // vertex snapping on the internal pixel grid (half of it made the near road wobble)
+    PS1Globals.uSnapRes.value.set(this.lowW, this.lowH);
   }
 
   /**
@@ -215,7 +216,7 @@ export class RetroPipeline {
       this.rt.viewport.set(x, y, w, h);
       this.rt.scissor.set(x, y, w, h);
       // vertex snapping on this view's own pixel grid
-      PS1Globals.uSnapRes.value.set(w / 2, h / 2);
+      PS1Globals.uSnapRes.value.set(w, h);
       v.before?.();
       r.setRenderTarget(this.rt);
       // the clear colour behind this view (sky gaps), then the depth of this rectangle only
@@ -226,7 +227,8 @@ export class RetroPipeline {
     this.rt.scissorTest = false;
     this.rt.viewport.set(0, 0, this.lowW, this.lowH);
     this.rt.scissor.set(0, 0, this.lowW, this.lowH);
-    PS1Globals.uSnapRes.value.set(this.lowW / 2, this.lowH / 2);
+    // vertex snapping on the internal pixel grid (half of it made the near road wobble)
+    PS1Globals.uSnapRes.value.set(this.lowW, this.lowH);
     r.setRenderTarget(null);
     r.render(this.postScene, this.postCam);
   }

@@ -35,9 +35,9 @@ const DRIFT_BOOST = [0, 0.55, 1.05, 1.7];
  * drift tightens it, steering out of it opens it (wide sweeping arcs, never tighter than
  * normal full lock).
  */
-export const DRIFT_YAW = { base: 0.52, range: 0.26 };
+export const DRIFT_YAW = { base: 0.42, range: 0.2 };
 /** seconds for a drift to build up from normal steering to its full turn (no sudden snap) */
-const DRIFT_EASE_IN = 0.45;
+const DRIFT_EASE_IN = 0.6;
 
 export type BoostKind = 'drift' | 'start' | 'trick' | 'pad' | 'slip' | 'item' | 'bump';
 
@@ -357,7 +357,7 @@ export class Kart {
     this.itemHeld = inp.item;
     this.prevItem = inp.item;
     // steering is smoothed (more while drifting: a keyboard tap doesn't jerk the slide)
-    this.steer += (inp.steer - this.steer) * Math.min(1, dt * (this.drift !== 0 ? 5 : 14));
+    this.steer += (inp.steer - this.steer) * Math.min(1, dt * (this.drift !== 0 ? 4 : 8));
 
     if (!raceOn) {
       // countdown: the start boost is decided by when the accelerator went down
